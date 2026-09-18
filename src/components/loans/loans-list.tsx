@@ -38,9 +38,9 @@ export function LoansList({ result, status, query }: LoansListProps) {
           value={status}
           onValueChange={(value) => setParams({ status: value === "ALL" ? null : value }, { resetPage: true })}
         >
-          <TabsList className="flex-wrap">
+          <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
             {TABS.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value}>
+              <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
                 {tab.label}
                 <span className="ml-1 rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">
                   {result.counts[tab.value]}

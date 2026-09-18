@@ -66,7 +66,7 @@ export function LoansTable({
     {
       key: "principal",
       header: "Capital",
-      className: "text-right",
+      className: "text-right hidden sm:table-cell",
       cell: (loan) => <MoneyDisplay value={loan.principalAmount} />,
     },
     {
@@ -81,9 +81,12 @@ export function LoansTable({
       key: "balance",
       header: "Saldo",
       className: "text-right",
-      cell: (loan) => (
-        <MoneyDisplay value={loan.balance} tone={loan.balance > 0 ? "neutral" : "muted"} className="font-medium" />
-      ),
+      cell: (loan) =>
+        loan.status === "CANCELLED" ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <MoneyDisplay value={loan.balance} tone={loan.balance > 0 ? "neutral" : "muted"} className="font-medium" />
+        ),
     },
     {
       key: "next",
