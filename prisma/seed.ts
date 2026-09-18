@@ -235,6 +235,11 @@ async function seedTransactions() {
 
 async function main() {
   await seedAdmin();
+  // Production: create/refresh the admin only, never touch business data.
+  if (process.env.SEED_ONLY_ADMIN === "true") {
+    console.log("SEED_ONLY_ADMIN=true: se omiten los datos de ejemplo");
+    return;
+  }
   await resetBusinessData();
   const personIds = await seedPeople();
   await seedLoans(personIds);

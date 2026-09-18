@@ -75,13 +75,43 @@ la base de datos configurada; `npm run db:seed` la deja limpia de nuevo.
 ## Producción
 
 ```bash
-npm run build
+npm run build       # genera el cliente Prisma y compila Next
 npm run db:deploy   # aplica migraciones pendientes en la base de producción
 npm run start       # sirve la build en el puerto 3000 (PORT para cambiarlo)
 ```
 
 Define `DATABASE_URL` y `AUTH_SECRET` en el entorno de producción. La aplicación no
 expone secretos al cliente: Prisma solo se importa desde `src/server/**`.
+
+### Despliegue en Vercel
+
+1. **Base de datos**: crea un PostgreSQL gestionado (Neon, Supabase o Prisma Postgres desde el
+   Marketplace de Vercel). Usa la cadena de conexión *pooled* si el proveedor la ofrece.
+2. **Variables de entorno** en el proyecto de Vercel: `DATABASE_URL` y `AUTH_SECRET`
+   (genera uno con `openssl rand -base64 32`). Opcionalmente `SEED_ADMIN_*` si vas a ejecutar
+   el seed contra esa base.
+3. **Build**: Vercel ejecuta `vercel-build`, que genera el cliente Prisma, aplica las
+   migraciones (`prisma migrate deploy`) y compila. Si prefieres migrar a mano, cambia el
+   Build Command a `npm run build` y ejecuta `npm run db:deploy` desde tu máquina con la
+   `DATABASE_URL` de producción.
+4. **Usuario administrador**: la base nueva está vacía. Créalo desde tu máquina apuntando a
+   producción y con `SEED_ONLY_ADMIN=true`, que crea/actualiza solo el admin **sin** borrar ni
+   cargar datos de ejemplo:
+
+   ```bash
+   # bash
+   DATABASE_URL="<url de producción>" SEED_ONLY_ADMIN=true SEED_ADMIN_EMAIL=tu@correo.com SEED_ADMIN_PASSWORD='Clave-segura-1' npm run db:seed
+   ```
+
+   ```powershell
+   # PowerShell
+   $env:DATABASE_URL="<url de producción>"; $env:SEED_ONLY_ADMIN="true"; $env:SEED_ADMIN_EMAIL="tu@correo.com"; $env:SEED_ADMIN_PASSWORD="Clave-segura-1"; npm run db:seed
+   ```
+
+   Sin `SEED_ONLY_ADMIN` el seed **reemplaza** todas las personas, préstamos y movimientos por
+   los datos de prueba: úsalo solo en desarrollo.
+5. Conecta el repositorio en vercel.com y despliega. Las fechas de negocio se calculan en
+   `America/Bogota` sin importar la región del servidor.
 
 ## Estructura
 
