@@ -101,6 +101,11 @@ export function formatMonth(key: string): string {
   return format(parseISO(`${key}-01`), "MMM yyyy", { locale: es });
 }
 
+/** `sept` — month only, for tight chart axes where the tooltip carries the year. */
+export function formatMonthShort(key: string): string {
+  return format(parseISO(`${key}-01`), "MMM", { locale: es });
+}
+
 /** `18 sept 2026, 14:05` for timestamps such as `createdAt`. */
 export function formatDateTime(date: Date): string {
   return new Intl.DateTimeFormat("es-CO", {

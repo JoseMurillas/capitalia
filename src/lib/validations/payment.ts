@@ -9,8 +9,7 @@ export const paymentSchema = z.object({
   installmentId: z
     .string()
     .trim()
-    .optional()
-    .nullable()
+    .nullish()
     .transform((v) => (v ? v : null)),
   amount: moneySchema,
   paymentDate: isoDateSchema,

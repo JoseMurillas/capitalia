@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { idSchema, isoDateSchema, moneySchema, optionalTrimmed } from "./common";
+import { idSchema, isoDateSchema, moneySchema, optionalIsoDateSchema, optionalTrimmed } from "./common";
 
 export const INSTALLMENT_FREQUENCIES = ["MONTHLY", "BIWEEKLY", "WEEKLY", "CUSTOM"] as const;
 export const INTEREST_TYPES = ["SIMPLE"] as const;
@@ -21,15 +21,20 @@ export const loanSchema = z
       .min(1, { error: "Mínimo 1 cuota" })
       .max(120, { error: "Máximo 120 cuotas" }),
     installmentFrequency: z.enum(INSTALLMENT_FREQUENCIES, { error: "Frecuencia inválida" }),
-    customIntervalDays: z.coerce
-      .number()
-      .int({ error: "Debe ser un número entero" })
-      .min(1, { error: "Mínimo 1 día" })
-      .max(365, { error: "Máximo 365 días" })
-      .optional()
-      .nullable(),
+    // Hidden unless the frequency is CUSTOM, so an empty input must read as "not set".
+    customIntervalDays: z
+      .preprocess(
+        (value) => (value === "" || value === undefined ? null : value),
+        z.coerce
+          .number()
+          .int({ error: "Debe ser un número entero" })
+          .min(1, { error: "Mínimo 1 día" })
+          .max(365, { error: "Máximo 365 días" })
+          .nullable(),
+      )
+      .optional(),
     startDate: isoDateSchema,
-    dueDate: isoDateSchema.optional().nullable(),
+    dueDate: optionalIsoDateSchema,
     notes: optionalTrimmed(1000),
   })
   .superRefine((loan, ctx) => {

@@ -8,7 +8,7 @@ export const personSchema = z.object({
   email: z
     .string()
     .trim()
-    .optional()
+    .nullish()
     .transform((v) => (v ? v : null))
     .refine((v) => v === null || z.email().safeParse(v).success, { error: "Correo inválido" }),
   document: optionalTrimmed(30),

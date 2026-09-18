@@ -10,10 +10,14 @@ import {
 } from "@/lib/calculations";
 import { fromIsoDate, toIsoDate, todayIso } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { PaymentInput } from "@/lib/validations/payment";
 
 import { NotFoundError, ServiceError } from "../errors";
+
+const SERIALIZATION_FAILURE = "P2034";
+const MAX_ATTEMPTS = 3;
 
 export type RegisterPaymentResult = {
   paymentId: string;
@@ -28,6 +32,22 @@ export type RegisterPaymentResult = {
  * inside one serializable transaction so a failure leaves no partial state.
  */
 export async function registerPayment(input: PaymentInput): Promise<RegisterPaymentResult> {
+  // Serializable transactions can be aborted when two payments race; retrying
+  // re-reads the balance so the second one is validated against the first.
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await applyPayment(input);
+    } catch (error) {
+      const retryable =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === SERIALIZATION_FAILURE &&
+        attempt < MAX_ATTEMPTS;
+      if (!retryable) throw error;
+    }
+  }
+}
+
+async function applyPayment(input: PaymentInput): Promise<RegisterPaymentResult> {
   return prisma.$transaction(
     async (tx) => {
       const loan = await tx.loan.findUnique({

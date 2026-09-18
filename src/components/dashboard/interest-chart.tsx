@@ -8,7 +8,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { formatMonth } from "@/lib/dates";
+import { formatMonth, formatMonthShort } from "@/lib/dates";
 import { formatMoney, formatMoneyCompact } from "@/lib/format";
 import type { MonthlyInterestPoint } from "@/server/queries/dashboard";
 
@@ -16,8 +16,33 @@ const config = {
   interest: { label: "Intereses cobrados", color: "var(--chart-1)" },
 } satisfies ChartConfig;
 
+type PeakLabelProps = React.ComponentProps<typeof LabelList>["content"] extends
+  | React.ReactElement
+  | ((props: infer P) => unknown)
+  | undefined
+  ? P
+  : never;
+
 export function InterestChart({ data }: { data: MonthlyInterestPoint[] }) {
   const maxIndex = data.reduce((best, point, index) => (point.interest > data[best].interest ? index : best), 0);
+  const hasValues = data.some((point) => point.interest > 0);
+
+  // Only the best month gets a direct label; the axis and tooltip carry the rest.
+  // Recharts hands the bar's box as `viewBox`; the label sits centred above it.
+  const renderPeakLabel = ({ viewBox, value, index }: PeakLabelProps) => {
+    if (!hasValues || index !== maxIndex || !viewBox || !("x" in viewBox)) return null;
+    const { x = 0, y = 0, width = 0 } = viewBox;
+    return (
+      <text
+        x={x + width / 2}
+        y={y - 6}
+        textAnchor="middle"
+        className="fill-foreground text-xs tabular-nums"
+      >
+        {formatMoneyCompact(Number(value))}
+      </text>
+    );
+  };
 
   return (
     <ChartContainer config={config} className="h-64 w-full">
@@ -28,7 +53,8 @@ export function InterestChart({ data }: { data: MonthlyInterestPoint[] }) {
           tickLine={false}
           axisLine={false}
           tickMargin={8}
-          tickFormatter={(value: string) => formatMonth(value)}
+          interval={0}
+          tickFormatter={(value: string) => formatMonthShort(value)}
         />
         <YAxis
           tickLine={false}
@@ -52,15 +78,7 @@ export function InterestChart({ data }: { data: MonthlyInterestPoint[] }) {
           }
         />
         <Bar dataKey="interest" fill="var(--color-interest)" radius={[4, 4, 0, 0]} maxBarSize={24}>
-          {/* Direct-label only the best month; the axis and tooltip carry the rest. */}
-          <LabelList
-            position="top"
-            offset={6}
-            className="fill-foreground text-xs tabular-nums"
-            valueAccessor={(_entry, index) =>
-              index === maxIndex && data[index].interest > 0 ? formatMoneyCompact(data[index].interest) : ""
-            }
-          />
+          <LabelList dataKey="interest" content={renderPeakLabel} />
         </Bar>
       </BarChart>
     </ChartContainer>

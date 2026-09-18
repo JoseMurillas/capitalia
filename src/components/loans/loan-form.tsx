@@ -141,14 +141,17 @@ export function LoanForm({ people, defaultPersonId }: LoanFormProps) {
   const preview = previewKey && previewState ? previewState.data : null;
   const previewLoading = Boolean(previewKey) && previewState?.key !== previewKey;
 
-  const onSubmit = form.handleSubmit((values) => {
-    startTransition(async () => {
-      const result = await createLoanAction(values);
-      if (handleActionFailure(form, result)) return;
-      toast.success("Préstamo creado con su cronograma de cuotas");
-      router.push(`/prestamos/${result.data.id}`);
-    });
-  });
+  const onSubmit = form.handleSubmit(
+    (values) => {
+      startTransition(async () => {
+        const result = await createLoanAction(values);
+        if (handleActionFailure(form, result)) return;
+        toast.success("Préstamo creado con su cronograma de cuotas");
+        router.push(`/prestamos/${result.data.id}`);
+      });
+    },
+    () => toast.error("Revisa los campos marcados"),
+  );
 
   const { errors } = form.formState;
 

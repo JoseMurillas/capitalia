@@ -10,7 +10,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { formatMonth } from "@/lib/dates";
+import { formatMonth, formatMonthShort } from "@/lib/dates";
 import { formatMoney, formatMoneyCompact } from "@/lib/format";
 import type { MonthlyCashFlowPoint } from "@/server/queries/dashboard";
 
@@ -29,7 +29,8 @@ export function CashFlowChart({ data }: { data: MonthlyCashFlowPoint[] }) {
           tickLine={false}
           axisLine={false}
           tickMargin={8}
-          tickFormatter={(value: string) => formatMonth(value)}
+          interval={0}
+          tickFormatter={(value: string) => formatMonthShort(value)}
         />
         <YAxis
           tickLine={false}
@@ -51,7 +52,7 @@ export function CashFlowChart({ data }: { data: MonthlyCashFlowPoint[] }) {
             />
           }
         />
-        <ChartLegend content={<ChartLegendContent />} />
+        <ChartLegend itemSorter={null} content={<ChartLegendContent />} />
         <Bar dataKey="income" fill="var(--color-income)" radius={[4, 4, 0, 0]} maxBarSize={24} />
         <Bar dataKey="expense" fill="var(--color-expense)" radius={[4, 4, 0, 0]} maxBarSize={24} />
       </BarChart>

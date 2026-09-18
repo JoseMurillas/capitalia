@@ -59,13 +59,18 @@ npm run dev
 Abre <http://localhost:3000>. Inicia sesión con el usuario definido en las variables
 `SEED_ADMIN_*` (por defecto `admin@capitalia.local` / `Admin123*`).
 
-Verificaciones:
+## Pruebas
 
 ```bash
-npm run lint
-npm run typecheck
-npm test
+npm run lint         # ESLint
+npm run typecheck    # TypeScript estricto
+npm test             # Vitest: cálculos financieros, fechas y formato
+npm run test:e2e     # Playwright: flujo completo en navegador (requiere la BD con seed)
 ```
+
+Para las pruebas end-to-end instala el navegador una vez con `npx playwright install chromium`.
+Levantan `next dev` en el puerto 3100 (o reutilizan uno abierto) y crean registros de prueba en
+la base de datos configurada; `npm run db:seed` la deja limpia de nuevo.
 
 ## Producción
 
@@ -89,6 +94,7 @@ src/components/       ui (shadcn), shared, layout y componentes por módulo
 src/server/           queries (lectura → DTOs), actions ('use server'), services (transacciones)
 src/lib/              auth, prisma, format, dates, calculations (puro), validations (zod)
 src/hooks/, src/types/
+e2e/                  pruebas Playwright (flujo completo y navegación móvil)
 docs/superpowers/specs/  diseño del sistema
 ```
 

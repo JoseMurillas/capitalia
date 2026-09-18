@@ -2,10 +2,19 @@ import { z } from "zod";
 
 import { isIsoDate } from "@/lib/dates";
 
+// Default Zod messages (type errors, etc.) in Spanish; custom messages stay as written.
+z.config(z.locales.es());
+
 /** `yyyy-MM-dd` string; the only date format that crosses the client boundary. */
 export const isoDateSchema = z
   .string({ error: "Fecha requerida" })
   .refine(isIsoDate, { error: "Fecha inválida" });
+
+/** Optional date: empty input, null and undefined all normalise to null. */
+export const optionalIsoDateSchema = z
+  .union([isoDateSchema, z.literal(""), z.null()])
+  .transform((v) => (v ? v : null))
+  .optional();
 
 /** Money typed by the user: positive, at most two decimals, within DECIMAL(15,2). */
 export const moneySchema = z.coerce
@@ -16,12 +25,16 @@ export const moneySchema = z.coerce
 
 export const idSchema = z.string().trim().min(1, { error: "Identificador requerido" });
 
+/**
+ * Optional free text. Accepts undefined/null too because forms re-submit the
+ * already-transformed value (null) to the server, which validates again.
+ */
 export const optionalTrimmed = (max: number) =>
   z
     .string()
     .trim()
     .max(max, { error: `Máximo ${max} caracteres` })
-    .optional()
+    .nullish()
     .transform((v) => (v ? v : null));
 
 export const dateRangeSchema = z
