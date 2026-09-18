@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum LoanStatus {
+  ACTIVE
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum InterestType {
+  SIMPLE
+}
+
+enum InstallmentFrequency {
+  MONTHLY
+  BIWEEKLY
+  WEEKLY
+  CUSTOM
+}
+
+enum InstallmentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  OTHER
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum TransactionCategory {
+  SALARY
+  LOAN_INTEREST
+  OTHER_INCOME
+  FOOD
+  TRANSPORT
+  HOUSING
+  SERVICES
+  ENTERTAINMENT
+  OTHER_EXPENSE
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid(2))
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
+/// Someone who borrows money from the administrator.
+model Person {
+  id        String   @id @default(cuid(2))
+  name      String
+  phone     String?
+  email     String?
+  document  String?  @unique
+  address   String?
+  notes     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  loans Loan[]
+
+  @@index([name])
+  @@map("people")
+}
+
+model Loan {
+  id                   String               @id @default(cuid(2))
+  personId             String
+  person               Person               @relation(fields: [personId], references: [id], onDelete: Restrict)
+  principalAmount      Decimal              @db.Decimal(15, 2)
+  /// Monthly rate as a percentage, e.g. 12.000 means 12 % per month.
+  monthlyInterestRate  Decimal              @db.Decimal(6, 3)
+  interestType         InterestType         @default(SIMPLE)
+  numberOfInstallments Int
+  installmentFrequency InstallmentFrequency
+  /// Days between installments; only used when installmentFrequency is CUSTOM.
+  customIntervalDays   Int?
+  startDate            DateTime             @db.Date
+  dueDate              DateTime             @db.Date
+  status               LoanStatus           @default(ACTIVE)
+  notes                String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  installments Installment[]
+  payments     Payment[]
+
+  @@index([personId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("loans")
+}
+
+model Installment {
+  id                String            @id @default(cuid(2))
+  loanId            String
+  loan              Loan              @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  installmentNumber Int
+  dueDate           DateTime          @db.Date
+  principalAmount   Decimal           @db.Decimal(15, 2)
+  interestAmount    Decimal           @db.Decimal(15, 2)
+  totalAmount       Decimal           @db.Decimal(15, 2)
+  principalPaid     Decimal           @default(0) @db.Decimal(15, 2)
+  interestPaid      Decimal           @default(0) @db.Decimal(15, 2)
+  paidAmount        Decimal           @default(0) @db.Decimal(15, 2)
+  status            InstallmentStatus @default(PENDING)
+  paidAt            DateTime?         @db.Date
+
+  payments    Payment[]
+  allocations PaymentAllocation[]
+
+  @@unique([loanId, installmentNumber])
+  @@index([dueDate, status])
+  @@map("installments")
+}
+
+model Payment {
+  id            String        @id @default(cuid(2))
+  loanId        String
+  loan          Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  /// Installment the user chose when registering the payment; the exact split
+  /// across installments lives in PaymentAllocation.
+  installmentId String?
+  installment   Installment?  @relation(fields: [installmentId], references: [id], onDelete: SetNull)
+  amount        Decimal       @db.Decimal(15, 2)
+  principalPaid Decimal       @db.Decimal(15, 2)
+  interestPaid  Decimal       @db.Decimal(15, 2)
+  paymentDate   DateTime      @db.Date
+  paymentMethod PaymentMethod
+  notes         String?
+  createdAt     DateTime      @default(now())
+
+  allocations PaymentAllocation[]
+
+  @@index([loanId])
+  @@index([paymentDate])
+  @@map("payments")
+}
+
+/// How much of a payment went to each installment (a payment may cover several).
+model PaymentAllocation {
+  id            String      @id @default(cuid(2))
+  paymentId     String
+  payment       Payment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  installmentId String
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  principalPaid Decimal     @db.Decimal(15, 2)
+  interestPaid  Decimal     @db.Decimal(15, 2)
+
+  @@index([paymentId])
+  @@index([installmentId])
+  @@map("payment_allocations")
+}
+
+/// Personal income and expenses, independent from loan cash flows.
+model Transaction {
+  id              String              @id @default(cuid(2))
+  type            TransactionType
+  category        TransactionCategory
+  amount          Decimal             @db.Decimal(15, 2)
+  description     String
+  transactionDate DateTime            @db.Date
+  notes           String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([transactionDate])
+  @@index([type, category])
+  @@map("transactions")
+}
