@@ -101,6 +101,7 @@ async function seedLoans(personIds: Record<string, string>) {
         numberOfInstallments: 4,
         installmentFrequency: "BIWEEKLY",
         startDate: addDaysIso(today, -10),
+        notes: null,
       }),
       payments: [{ date: addDaysIso(today, -2), amount: 50_000, method: "CASH" }],
     },
@@ -128,6 +129,7 @@ async function seedLoans(personIds: Record<string, string>) {
         numberOfInstallments: 1,
         installmentFrequency: "MONTHLY",
         startDate: addDaysIso(today, -15),
+        notes: null,
       }),
     },
     {
