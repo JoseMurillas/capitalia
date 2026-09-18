@@ -25,14 +25,14 @@ const iconTone: Record<StatTone, string> = {
 export function StatCard({ title, value, icon: Icon, hint, tone = "default", className }: StatCardProps) {
   return (
     <Card className={cn("gap-0 py-4", className)}>
-      <CardContent className="flex items-start justify-between gap-3 px-4">
+      <CardContent className="flex items-start justify-between gap-2 px-3 sm:gap-3 sm:px-4">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm text-muted-foreground">{title}</p>
-          <div className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
+          <p className="truncate text-xs text-muted-foreground sm:text-sm">{title}</p>
+          <div className="mt-1 text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">{value}</div>
           {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
         </div>
         {Icon ? (
-          <div className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", iconTone[tone])}>
+          <div className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg sm:size-9", iconTone[tone])}>
             <Icon className="size-4" aria-hidden="true" />
           </div>
         ) : null}

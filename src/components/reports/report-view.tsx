@@ -39,7 +39,7 @@ export function ReportView({ report }: { report: ReportData }) {
           <h2 className="text-lg font-semibold">Resultado del periodo</h2>
           <p className="text-sm text-muted-foreground">{periodLabel}</p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <StatCard
             title="Intereses generados"
             value={<MoneyDisplay value={period.interestGenerated} />}

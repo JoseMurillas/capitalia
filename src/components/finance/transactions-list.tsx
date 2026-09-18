@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { EmptyState } from "@/components/shared/empty-state";
+import { MobileCard } from "@/components/shared/mobile-card";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { TablePagination } from "@/components/shared/pagination";
 import { TransactionTypeBadge } from "@/components/shared/status-badge";
@@ -109,28 +110,32 @@ export function TransactionsList({ result, type, category, hasFilters }: Transac
       key: "actions",
       header: <span className="sr-only">Acciones</span>,
       className: "w-12 text-right",
-      cell: (t) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${t.description}`}>
-              <MoreHorizontal />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => openEdit(t)}>
-              <Pencil aria-hidden="true" />
-              Editar
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={() => setPendingDelete(t)}>
-              <Trash2 aria-hidden="true" />
-              Eliminar
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
+      cell: (t) => renderActions(t),
     },
   ];
+
+  function renderActions(t: TransactionDto) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label={`Acciones para ${t.description}`}>
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => openEdit(t)}>
+            <Pencil aria-hidden="true" />
+            Editar
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => setPendingDelete(t)}>
+            <Trash2 aria-hidden="true" />
+            Eliminar
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -196,6 +201,22 @@ export function TransactionsList({ result, type, category, hasFilters }: Transac
         columns={columns}
         rows={result.items}
         getRowId={(t) => t.id}
+        renderCard={(t) => (
+          <MobileCard
+            title={t.description}
+            subtitle={`${formatDate(t.transactionDate)} · ${TRANSACTION_CATEGORY_LABELS[t.category]}`}
+            value={
+              <MoneyDisplay
+                value={t.type === "INCOME" ? t.amount : -t.amount}
+                tone={t.type === "INCOME" ? "positive" : "negative"}
+                signed
+              />
+            }
+            badge={<TransactionTypeBadge type={t.type} />}
+            meta={t.notes ? [{ label: "Notas", value: t.notes }] : undefined}
+            actions={renderActions(t)}
+          />
+        )}
         emptyState={
           <EmptyState
             icon={Wallet}

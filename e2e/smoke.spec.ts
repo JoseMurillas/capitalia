@@ -88,7 +88,7 @@ test.describe("Capitalia end to end", () => {
     await txDialog.getByLabel("Descripción").fill(description);
     await txDialog.getByRole("button", { name: "Registrar" }).click();
     await expect(txDialog).toBeHidden();
-    await expect(page.getByText(description)).toBeVisible();
+    await expect(page.getByRole("table").getByText(description)).toBeVisible();
     await page.screenshot({ path: screenshotPath("finance"), fullPage: true });
 
     // Reports load with the default month.

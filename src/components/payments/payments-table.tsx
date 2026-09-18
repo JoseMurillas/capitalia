@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
+import { MobileCard } from "@/components/shared/mobile-card";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { formatDate } from "@/lib/dates";
 import { PAYMENT_METHOD_LABELS } from "@/lib/labels";
@@ -86,6 +87,23 @@ export function PaymentsTable({
       columns={columns}
       rows={payments}
       getRowId={(p) => p.id}
+      renderCard={(p) => (
+        <MobileCard
+          href={showPerson ? `/prestamos/${p.loanId}` : undefined}
+          title={showPerson ? p.personName : formatDate(p.paymentDate)}
+          subtitle={
+            showPerson
+              ? `${formatDate(p.paymentDate)} · ${PAYMENT_METHOD_LABELS[p.paymentMethod]}`
+              : `${p.installmentNumber ? `Cuota #${p.installmentNumber}` : "Cuota automática"} · ${PAYMENT_METHOD_LABELS[p.paymentMethod]}`
+          }
+          value={<MoneyDisplay value={p.amount} />}
+          meta={[
+            { label: "A intereses", value: <MoneyDisplay value={p.interestPaid} tone="positive" /> },
+            { label: "A capital", value: <MoneyDisplay value={p.principalPaid} /> },
+            ...(p.notes ? [{ label: "Notas", value: p.notes }] : []),
+          ]}
+        />
+      )}
       emptyState={
         <EmptyState icon={Receipt} title={emptyTitle} description={emptyDescription} action={emptyAction} />
       }

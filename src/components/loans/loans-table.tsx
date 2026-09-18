@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
+import { MobileCard } from "@/components/shared/mobile-card";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { InstallmentStatusBadge, LoanStatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
@@ -120,11 +121,45 @@ export function LoansTable({
     },
   ];
 
+  const installmentsLabel = (loan: LoanSummaryDto) =>
+    `${loan.numberOfInstallments} cuota${loan.numberOfInstallments === 1 ? "" : "s"} · ${FREQUENCY_LABELS[
+      loan.installmentFrequency
+    ].toLowerCase()} · ${formatPercent(loan.monthlyInterestRate)}`;
+
   return (
     <DataTable
       columns={columns}
       rows={loans}
       getRowId={(loan) => loan.id}
+      renderCard={(loan) => (
+        <MobileCard
+          href={`/prestamos/${loan.id}`}
+          title={showPerson ? loan.personName : `Préstamo del ${formatDate(loan.startDate)}`}
+          subtitle={installmentsLabel(loan)}
+          value={
+            loan.status === "CANCELLED" ? null : (
+              <MoneyDisplay value={loan.balance} tone={loan.balance > 0 ? "neutral" : "muted"} />
+            )
+          }
+          badge={<LoanStatusBadge status={loan.status} />}
+          meta={[
+            { label: "Capital", value: <MoneyDisplay value={loan.principalAmount} /> },
+            { label: "Vence", value: formatDate(loan.dueDate) },
+            ...(loan.nextInstallment && loan.status !== "CANCELLED"
+              ? [
+                  {
+                    label: `Cuota #${loan.nextInstallment.installmentNumber}`,
+                    value: formatDate(loan.nextInstallment.dueDate),
+                  },
+                  {
+                    label: "Pendiente",
+                    value: <MoneyDisplay value={loan.nextInstallment.pendingAmount} />,
+                  },
+                ]
+              : []),
+          ]}
+        />
+      )}
       emptyState={
         <EmptyState
           icon={HandCoins}

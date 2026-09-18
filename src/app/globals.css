@@ -128,3 +128,22 @@
     @apply font-sans;
   }
 }
+/* Touch devices: comfortable 44px targets and no iOS zoom on focus. */
+@media (pointer: coarse) {
+  [data-slot="button"]:not([data-size^="icon"]) {
+    min-height: 2.75rem;
+  }
+  [data-slot="button"][data-size^="icon"] {
+    min-height: 2.5rem;
+    min-width: 2.5rem;
+  }
+  [data-slot="input"],
+  [data-slot="select-trigger"] {
+    min-height: 2.75rem;
+  }
+  [data-slot="dropdown-menu-item"],
+  [data-slot="select-item"],
+  [data-slot="tabs-trigger"] {
+    min-height: 2.5rem;
+  }
+}

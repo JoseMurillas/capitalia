@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
+import { MobileCard } from "@/components/shared/mobile-card";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { ActiveBadge } from "@/components/shared/status-badge";
 import type { PersonListItem } from "@/server/queries/people";
@@ -16,6 +17,19 @@ type PeopleTableProps = {
   hasFilters: boolean;
   onCreate: () => void;
 };
+
+function toActionsPerson(p: PersonListItem) {
+  return {
+    id: p.id,
+    name: p.name,
+    phone: p.phone,
+    email: p.email,
+    document: p.document,
+    address: p.address,
+    notes: p.notes,
+    active: p.active,
+  };
+}
 
 export function PeopleTable({ people, hasFilters, onCreate }: PeopleTableProps) {
   const columns: DataTableColumn<PersonListItem>[] = [
@@ -63,20 +77,7 @@ export function PeopleTable({ people, hasFilters, onCreate }: PeopleTableProps) 
       key: "actions",
       header: <span className="sr-only">Acciones</span>,
       className: "w-12 text-right",
-      cell: (p) => (
-        <PersonActions
-          person={{
-            id: p.id,
-            name: p.name,
-            phone: p.phone,
-            email: p.email,
-            document: p.document,
-            address: p.address,
-            notes: p.notes,
-            active: p.active,
-          }}
-        />
-      ),
+      cell: (p) => <PersonActions person={toActionsPerson(p)} />,
     },
   ];
 
@@ -85,6 +86,20 @@ export function PeopleTable({ people, hasFilters, onCreate }: PeopleTableProps) 
       columns={columns}
       rows={people}
       getRowId={(p) => p.id}
+      renderCard={(p) => (
+        <MobileCard
+          href={`/personas/${p.id}`}
+          title={p.name}
+          subtitle={[p.document ? `CC ${p.document}` : null, p.phone].filter(Boolean).join(" · ") || "Sin contacto"}
+          value={<MoneyDisplay value={p.balance} tone={p.balance > 0 ? "neutral" : "muted"} />}
+          badge={<ActiveBadge active={p.active} />}
+          meta={[
+            { label: "Préstamos activos", value: p.activeLoans },
+            { label: "Saldo pendiente", value: <MoneyDisplay value={p.balance} /> },
+          ]}
+          actions={<PersonActions person={toActionsPerson(p)} />}
+        />
+      )}
       emptyState={
         <EmptyState
           icon={Users}

@@ -23,6 +23,11 @@ type DataTableProps<Row> = {
   getRowId: (row: Row) => string;
   /** Rendered instead of the table when there are no rows. */
   emptyState: React.ReactNode;
+  /**
+   * Phone layout: when provided, rows render as stacked cards below the `md`
+   * breakpoint and the table is only used from `md` up.
+   */
+  renderCard?: (row: Row) => React.ReactNode;
   rowClassName?: (row: Row) => string | undefined;
   footer?: React.ReactNode;
   className?: string;
@@ -37,14 +42,15 @@ export function DataTable<Row>({
   rows,
   getRowId,
   emptyState,
+  renderCard,
   rowClassName,
   footer,
   className,
 }: DataTableProps<Row>) {
   if (rows.length === 0) return <>{emptyState}</>;
 
-  return (
-    <div className={cn("overflow-hidden rounded-lg border bg-card", className)}>
+  const table = (
+    <div className={cn("overflow-hidden rounded-lg border bg-card", renderCard && "max-md:hidden", className)}>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -74,5 +80,18 @@ export function DataTable<Row>({
         </Table>
       </div>
     </div>
+  );
+
+  if (!renderCard) return table;
+
+  return (
+    <>
+      <ul className="flex flex-col gap-2 md:hidden">
+        {rows.map((row) => (
+          <li key={getRowId(row)}>{renderCard(row)}</li>
+        ))}
+      </ul>
+      {table}
+    </>
   );
 }

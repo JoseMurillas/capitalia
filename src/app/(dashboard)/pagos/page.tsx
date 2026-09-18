@@ -32,7 +32,7 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/pagos">
         description="Todos los abonos recibidos y cómo se distribuyeron entre intereses y capital."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatCard
           title={hasFilters ? "Pagos en el filtro" : "Pagos registrados"}
           value={result.totals.count}
