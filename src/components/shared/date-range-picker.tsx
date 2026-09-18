@@ -12,7 +12,6 @@ import { useUrlParams } from "@/hooks/use-url-params";
 import {
   endOfMonthIso,
   formatDate,
-  fromIsoDate,
   type IsoDate,
   isIsoDate,
   startOfMonthIso,
@@ -62,6 +61,8 @@ type DateRangePickerProps = {
   toParam?: string;
   /** Show a clear button that removes both parameters. */
   clearable?: boolean;
+  /** Range shown and used when the URL carries none (e.g. reports default to the current month). */
+  fallback?: { from: IsoDate; to: IsoDate };
   className?: string;
 };
 
@@ -70,6 +71,7 @@ export function DateRangePicker({
   fromParam = "from",
   toParam = "to",
   clearable = true,
+  fallback,
   className,
 }: DateRangePickerProps) {
   const { searchParams, setParams } = useUrlParams();
@@ -77,8 +79,9 @@ export function DateRangePicker({
 
   const fromValue = searchParams.get(fromParam);
   const toValue = searchParams.get(toParam);
-  const from = fromValue && isIsoDate(fromValue) ? fromValue : null;
-  const to = toValue && isIsoDate(toValue) ? toValue : null;
+  const hasUrlRange = Boolean(fromValue || toValue);
+  const from = fromValue && isIsoDate(fromValue) ? fromValue : hasUrlRange ? null : (fallback?.from ?? null);
+  const to = toValue && isIsoDate(toValue) ? toValue : hasUrlRange ? null : (fallback?.to ?? null);
 
   const selected: DateRange | undefined = from
     ? { from: toLocalDate(from), to: to ? toLocalDate(to) : undefined }
@@ -120,7 +123,7 @@ export function DateRangePicker({
               mode="range"
               locale={es}
               numberOfMonths={1}
-              defaultMonth={selected?.from ?? fromIsoDate(todayIso())}
+              defaultMonth={selected?.from ?? toLocalDate(todayIso())}
               selected={selected}
               onSelect={(range) => {
                 if (range?.from && range.to) {
@@ -133,7 +136,7 @@ export function DateRangePicker({
           </div>
         </PopoverContent>
       </Popover>
-      {clearable && (from || to) ? (
+      {clearable && hasUrlRange ? (
         <Button
           variant="ghost"
           size="icon-sm"
