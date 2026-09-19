@@ -39,16 +39,27 @@ Con Docker (opcional):
 npm run db:up        # levanta PostgreSQL 16 en localhost:5433
 ```
 
-Genera el cliente, aplica migraciones y carga datos de prueba:
+Genera el cliente y aplica las migraciones (crean las tablas, categorías, estados y métodos
+de pago; la base queda lista pero sin registros):
 
 ```bash
 npx prisma generate
 npx prisma migrate dev
-npm run db:seed
 ```
 
-Otros comandos útiles: `npm run db:studio` (Prisma Studio), `npm run db:deploy`
-(aplica migraciones sin generar nuevas, para producción), `npm run db:down`.
+Luego elige una de las dos:
+
+```bash
+npm run db:admin   # solo crea el usuario administrador (base limpia, para uso real)
+npm run db:seed    # admin + personas, préstamos, pagos y movimientos de ejemplo (desarrollo)
+```
+
+Ambos leen `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD`. `db:seed`
+**reemplaza** todos los datos de negocio por los de ejemplo cada vez que se ejecuta.
+
+Otros comandos: `npm run db:studio` (Prisma Studio), `npm run db:deploy` (aplica migraciones
+sin generar nuevas, para producción), `npm run db:clear` (borra personas, préstamos, pagos y
+movimientos conservando usuarios; exige `CONFIRM_CLEAR=yes`), `npm run db:down`.
 
 ## Desarrollo
 
@@ -94,22 +105,23 @@ expone secretos al cliente: Prisma solo se importa desde `src/server/**`.
    migraciones (`prisma migrate deploy`) y compila. Si prefieres migrar a mano, cambia el
    Build Command a `npm run build` y ejecuta `npm run db:deploy` desde tu máquina con la
    `DATABASE_URL` de producción.
-4. **Usuario administrador**: la base nueva está vacía. Créalo desde tu máquina apuntando a
-   producción y con `SEED_ONLY_ADMIN=true`, que crea/actualiza solo el admin **sin** borrar ni
-   cargar datos de ejemplo:
+4. **Usuario administrador**: la base nueva ya tiene tablas, categorías y estados, pero ningún
+   registro. Crea el admin desde tu máquina apuntando a producción (usa la cadena directa,
+   `DATABASE_URL_UNPOOLED` en Neon):
 
    ```bash
    # bash
-   DATABASE_URL="<url de producción>" SEED_ONLY_ADMIN=true SEED_ADMIN_EMAIL=tu@correo.com SEED_ADMIN_PASSWORD='Clave-segura-1' npm run db:seed
+   DATABASE_URL="<url directa de producción>" SEED_ADMIN_NAME="Tu nombre" SEED_ADMIN_EMAIL=tu@correo.com SEED_ADMIN_PASSWORD='Clave-segura-1' npm run db:admin
    ```
 
    ```powershell
    # PowerShell
-   $env:DATABASE_URL="<url de producción>"; $env:SEED_ONLY_ADMIN="true"; $env:SEED_ADMIN_EMAIL="tu@correo.com"; $env:SEED_ADMIN_PASSWORD="Clave-segura-1"; npm run db:seed
+   $env:DATABASE_URL="<url directa de producción>"; $env:SEED_ADMIN_NAME="Tu nombre"; $env:SEED_ADMIN_EMAIL="tu@correo.com"; $env:SEED_ADMIN_PASSWORD="Clave-segura-1"; npm run db:admin
    ```
 
-   Sin `SEED_ONLY_ADMIN` el seed **reemplaza** todas las personas, préstamos y movimientos por
-   los datos de prueba: úsalo solo en desarrollo.
+   `db:admin` nunca toca los datos de negocio; volver a ejecutarlo solo actualiza nombre y
+   contraseña. **No ejecutes `db:seed` contra producción**: cargaría los datos de ejemplo.
+   Si ya lo hiciste, `CONFIRM_CLEAR=yes npm run db:clear` los elimina y conserva tu usuario.
 5. Conecta el repositorio en vercel.com y despliega. Las fechas de negocio se calculan en
    `America/Bogota` sin importar la región del servidor.
 

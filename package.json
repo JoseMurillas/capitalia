@@ -18,7 +18,9 @@
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "test:e2e": "playwright test",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build"
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
+    "db:admin": "tsx prisma/create-admin.ts",
+    "db:clear": "tsx prisma/clear-data.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

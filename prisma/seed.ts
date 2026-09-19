@@ -1,28 +1,14 @@
 import "dotenv/config";
 
-import { hash } from "bcryptjs";
-
 import { addDaysIso, addMonthsIso, fromIsoDate, todayIso } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { cancelLoan, createLoan, syncOverdueStatuses } from "@/server/services/loans";
 import { registerPayment } from "@/server/services/payments";
 import type { LoanInput } from "@/lib/validations/loan";
 
+import { upsertAdmin } from "./admin";
+
 const today = todayIso();
-
-async function seedAdmin() {
-  const name = process.env.SEED_ADMIN_NAME ?? "Administrador";
-  const email = (process.env.SEED_ADMIN_EMAIL ?? "admin@capitalia.local").toLowerCase();
-  const password = process.env.SEED_ADMIN_PASSWORD ?? "Admin123*";
-  const passwordHash = await hash(password, 12);
-
-  await prisma.user.upsert({
-    where: { email },
-    update: { name, passwordHash },
-    create: { name, email, passwordHash },
-  });
-  console.log(`Admin listo: ${email}`);
-}
 
 async function resetBusinessData() {
   await prisma.loan.deleteMany();
@@ -235,7 +221,7 @@ async function seedTransactions() {
 }
 
 async function main() {
-  await seedAdmin();
+  await upsertAdmin();
   // Production: create/refresh the admin only, never touch business data.
   if (process.env.SEED_ONLY_ADMIN === "true") {
     console.log("SEED_ONLY_ADMIN=true: se omiten los datos de ejemplo");
