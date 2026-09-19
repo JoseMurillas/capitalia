@@ -5,3 +5,4 @@ export * from "./schedule";
 export * from "./payments";
 export * from "./status";
 export * from "./loan-summary";
+export * from "./prepayment";

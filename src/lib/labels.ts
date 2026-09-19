@@ -2,6 +2,7 @@ import type {
   InstallmentFrequency,
   InstallmentStatus,
   LoanStatus,
+  PaymentKind,
   PaymentMethod,
   TransactionCategory,
   TransactionType,
@@ -32,6 +33,12 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   CASH: "Efectivo",
   BANK_TRANSFER: "Transferencia",
   OTHER: "Otro",
+};
+
+export const PAYMENT_KIND_LABELS: Record<PaymentKind, string> = {
+  AUTO: "Automático",
+  INTEREST_ONLY: "Solo intereses",
+  PRINCIPAL: "Abono a capital",
 };
 
 export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {

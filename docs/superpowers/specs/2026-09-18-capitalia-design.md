@@ -114,16 +114,25 @@ El cronograma queda fijo al crear el préstamo (modelo "cuotas fijas"). No se
 re-amortiza ante abonos extraordinarios; un futuro `InterestType` puede añadir esa
 estrategia sin tocar el resto del sistema.
 
-### 6.2 Distribución de pagos (`calculatePaymentDistribution`)
+### 6.2 Aplicación de pagos (`Payment.kind`, añadido el 2026-09-19)
 
-Entrada: cuotas no pagadas en orden, monto, cuota objetivo opcional.
-1. Se parte de la cuota objetivo (si se indica) o de la primera no pagada.
-2. En cada cuota se cubre primero el interés pendiente, luego el capital pendiente.
-3. El sobrante pasa a la siguiente cuota.
-4. Un monto mayor al saldo total pendiente del préstamo se rechaza en validación.
+El administrador elige a qué se aplica cada pago:
 
-Ejemplo del usuario: interés pendiente $120.000 y capital $1.000.000; pago $200.000 →
-$120.000 a interés y $80.000 a capital.
+- **AUTO** (`calculatePaymentDistribution`): cuota por cuota desde la objetivo (o la más
+  antigua no pagada); en cada una primero el interés pendiente y luego el capital; el
+  sobrante pasa a la siguiente. Se rechaza un monto mayor al saldo total.
+  Ejemplo del usuario: interés pendiente $120.000 y capital $1.000.000; pago $200.000 →
+  $120.000 a interés y $80.000 a capital.
+- **INTEREST_ONLY** (`calculateInterestOnlyDistribution`): solo intereses pendientes,
+  de la cuota más antigua (u objetivo) en adelante; el capital no cambia. Se rechaza un
+  monto mayor a los intereses pendientes.
+- **PRINCIPAL** (`calculatePrincipalPrepayment`, abono a capital): el monto se reparte
+  en partes iguales como capital pagado de las cuotas pendientes y éstas se recalculan
+  como un préstamo nuevo por el saldo restante: capital pendiente en partes iguales e
+  interés = nuevo saldo × tasa × meses del periodo. El interés ya cobrado de una cuota
+  nunca se reduce. Invariantes: Σ capital de cuotas = capital del préstamo y
+  Σ capital pagado de cuotas = Σ capital pagado en pagos. Se rechaza un abono mayor al
+  capital pendiente. Con el capital totalmente abonado, el interés restante queda en 0.
 
 ### 6.3 Estados
 

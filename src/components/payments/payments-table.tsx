@@ -6,8 +6,15 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { MobileCard } from "@/components/shared/mobile-card";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { formatDate } from "@/lib/dates";
-import { PAYMENT_METHOD_LABELS } from "@/lib/labels";
+import { PAYMENT_KIND_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/labels";
 import type { PaymentDto } from "@/server/queries/loan-dto";
+
+/** "Abono a capital", "#2 · solo intereses", "Automática"… */
+function describeApplication(p: PaymentDto): string {
+  if (p.kind === "PRINCIPAL") return PAYMENT_KIND_LABELS.PRINCIPAL;
+  const target = p.installmentNumber ? `#${p.installmentNumber}` : "Automática";
+  return p.kind === "INTEREST_ONLY" ? `${target} · solo intereses` : target;
+}
 
 type PaymentsTableProps = {
   payments: PaymentDto[];
@@ -48,7 +55,7 @@ export function PaymentsTable({
       key: "installment",
       header: "Cuota",
       className: "hidden sm:table-cell",
-      cell: (p) => (p.installmentNumber ? `#${p.installmentNumber}` : "Automática"),
+      cell: (p) => describeApplication(p),
     },
     {
       key: "amount",
@@ -94,7 +101,7 @@ export function PaymentsTable({
           subtitle={
             showPerson
               ? `${formatDate(p.paymentDate)} · ${PAYMENT_METHOD_LABELS[p.paymentMethod]}`
-              : `${p.installmentNumber ? `Cuota #${p.installmentNumber}` : "Cuota automática"} · ${PAYMENT_METHOD_LABELS[p.paymentMethod]}`
+              : `${describeApplication(p)} · ${PAYMENT_METHOD_LABELS[p.paymentMethod]}`
           }
           value={<MoneyDisplay value={p.amount} />}
           meta={[

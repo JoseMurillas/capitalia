@@ -172,6 +172,7 @@ async function seedLoans(personIds: Record<string, string>) {
       await registerPayment({
         loanId: id,
         installmentId: null,
+        kind: "AUTO",
         amount: payment.amount,
         paymentDate: payment.date,
         paymentMethod: payment.method ?? "CASH",

@@ -96,6 +96,49 @@ export function calculatePaymentDistribution(
   return { allocations, interestPaid, principalPaid, unallocated: remaining };
 }
 
+/**
+ * "Solo intereses": the amount covers pending interest oldest-first and leaves
+ * every principal untouched. Anything beyond the pending interest is reported
+ * as unallocated so the caller can reject it.
+ */
+export function calculateInterestOnlyDistribution(
+  installments: readonly InstallmentBalance[],
+  amount: MoneyInput,
+  targetInstallmentId?: string | null,
+): PaymentDistribution {
+  let remaining = roundMoney(amount);
+  if (remaining.lte(0)) {
+    throw new Error("Payment amount must be greater than zero");
+  }
+
+  const ordered = [...installments].sort((a, b) => a.installmentNumber - b.installmentNumber);
+  let startIndex = 0;
+  if (targetInstallmentId) {
+    startIndex = ordered.findIndex((i) => i.id === targetInstallmentId);
+    if (startIndex === -1) {
+      throw new Error("Target installment does not belong to the loan");
+    }
+  }
+
+  const allocations: PaymentAllocation[] = [];
+  let interestPaid = ZERO;
+  for (const installment of ordered.slice(startIndex)) {
+    if (remaining.lte(0)) break;
+    const interest = minMoney(pendingInterest(installment), remaining);
+    if (interest.lte(0)) continue;
+    remaining = remaining.minus(interest);
+    allocations.push({
+      installmentId: installment.id,
+      installmentNumber: installment.installmentNumber,
+      interestPaid: interest,
+      principalPaid: ZERO,
+    });
+    interestPaid = interestPaid.plus(interest);
+  }
+
+  return { allocations, interestPaid, principalPaid: ZERO, unallocated: remaining };
+}
+
 export function calculateRemainingBalance(
   installments: readonly InstallmentBalance[],
 ): RemainingBalance {

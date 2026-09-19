@@ -42,8 +42,10 @@ export default async function SettingsPage() {
               <div>
                 <dt className="font-medium">Aplicación de pagos</dt>
                 <dd className="text-muted-foreground">
-                  Cuota por cuota, primero al interés pendiente y luego al capital; el sobrante pasa a la siguiente
-                  cuota. Un pago nunca puede superar el saldo del préstamo.
+                  Al registrar un pago eliges a qué se aplica. <strong>Cuota</strong>: primero al interés pendiente y
+                  luego al capital, cuota por cuota. <strong>Solo intereses</strong>: cubre intereses y deja el capital
+                  igual. <strong>Abono a capital</strong>: reduce el capital y recalcula las cuotas restantes sobre el
+                  nuevo saldo.
                 </dd>
               </div>
               <div>

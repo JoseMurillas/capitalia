@@ -72,6 +72,29 @@ test.describe("Capitalia end to end", () => {
     await paymentDialog.getByRole("button", { name: "Registrar pago" }).click();
     await expect(paymentDialog.getByText(/supera el saldo pendiente/)).toBeVisible();
     await paymentDialog.getByRole("button", { name: "Cancelar" }).click();
+    await expect(paymentDialog).toBeHidden();
+
+    // "Solo intereses": pays the interest of installment #2 and leaves its principal untouched.
+    await page.getByRole("button", { name: "Registrar pago" }).click();
+    await paymentDialog.getByRole("tab", { name: "Solo intereses" }).click();
+    await paymentDialog.getByLabel("Cuota").click();
+    await page.getByRole("option", { name: /^#2 / }).click();
+    await paymentDialog.getByLabel("Monto").fill("120000");
+    await paymentDialog.getByRole("button", { name: "Registrar pago" }).click();
+    await expect(paymentDialog).toBeHidden();
+    await expect(page.getByText("$120.000 a intereses y $0 a capital")).toBeVisible();
+
+    // "Abono a capital": 200,000 lowers the outstanding principal (920,000 → 720,000) and the
+    // pending installments are recalculated on the new balance: 12 % of 720,000 = 86,400 each.
+    await page.getByRole("button", { name: "Registrar pago" }).click();
+    await paymentDialog.getByRole("tab", { name: "Abono a capital" }).click();
+    await expect(paymentDialog.getByLabel("Cuota")).toBeHidden();
+    await paymentDialog.getByLabel("Monto").fill("200000");
+    await paymentDialog.getByRole("button", { name: "Registrar abono" }).click();
+    await expect(paymentDialog).toBeHidden();
+    await expect(page.getByText(/200\.000 abonados a capital/)).toBeVisible();
+    await expect(page.getByRole("cell", { name: "$86.400" }).first()).toBeVisible();
+    await expect(page.getByRole("table").getByText("Abono a capital")).toBeVisible();
 
     // The payment shows up in the global payments list.
     await page.goto("/pagos");

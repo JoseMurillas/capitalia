@@ -36,6 +36,13 @@ enum InstallmentStatus {
   OVERDUE
 }
 
+/// How the administrator asked a payment to be applied.
+enum PaymentKind {
+  AUTO
+  INTEREST_ONLY
+  PRINCIPAL
+}
+
 enum PaymentMethod {
   CASH
   BANK_TRANSFER
@@ -157,6 +164,7 @@ model Payment {
   interestPaid  Decimal       @db.Decimal(15, 2)
   paymentDate   DateTime      @db.Date
   paymentMethod PaymentMethod
+  kind          PaymentKind   @default(AUTO)
   notes         String?
   createdAt     DateTime      @default(now())
 

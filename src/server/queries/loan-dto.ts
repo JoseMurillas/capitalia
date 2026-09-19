@@ -6,6 +6,7 @@ import type {
   InstallmentStatus,
   InterestType,
   LoanStatus,
+  PaymentKind,
   PaymentMethod,
 } from "@/generated/prisma/enums";
 import { summarizeInstallments, toNumber } from "@/lib/calculations";
@@ -81,6 +82,7 @@ export type PaymentDto = {
   interestPaid: number;
   paymentDate: IsoDate;
   paymentMethod: PaymentMethod;
+  kind: PaymentKind;
   notes: string | null;
   createdAt: string;
 };
@@ -170,6 +172,7 @@ export function toPaymentDto(payment: PaymentWithLoan): PaymentDto {
     interestPaid: toNumber(payment.interestPaid),
     paymentDate: toIsoDate(payment.paymentDate),
     paymentMethod: payment.paymentMethod,
+    kind: payment.kind,
     notes: payment.notes,
     createdAt: payment.createdAt.toISOString(),
   };

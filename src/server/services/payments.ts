@@ -1,16 +1,20 @@
+import { Prisma } from "@/generated/prisma/client";
 import {
+  calculateInterestOnlyDistribution,
   calculatePaymentDistribution,
+  calculatePrincipalPrepayment,
   calculateRemainingBalance,
   type InstallmentBalance,
   isInstallmentPaid,
+  type PaymentDistribution,
   resolveInstallmentStatus,
   resolveLoanStatus,
   toDbString,
   toDecimal,
+  ZERO,
 } from "@/lib/calculations";
 import { fromIsoDate, toIsoDate, todayIso } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
-import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { PaymentInput } from "@/lib/validations/payment";
 
@@ -21,15 +25,29 @@ const MAX_ATTEMPTS = 3;
 
 export type RegisterPaymentResult = {
   paymentId: string;
+  kind: PaymentInput["kind"];
   interestPaid: number;
   principalPaid: number;
   loanStatus: "ACTIVE" | "PAID" | "OVERDUE" | "CANCELLED";
 };
 
+type LoanWithInstallments = Prisma.LoanGetPayload<{ include: { installments: true } }>;
+type InstallmentRow = LoanWithInstallments["installments"][number];
+
+/** New figures for one installment after a payment is applied. */
+type InstallmentUpdate = {
+  id: string;
+  principalAmount: ReturnType<typeof toDecimal>;
+  interestAmount: ReturnType<typeof toDecimal>;
+  principalPaid: ReturnType<typeof toDecimal>;
+  interestPaid: ReturnType<typeof toDecimal>;
+};
+
 /**
  * Registers a payment against a loan. Everything — validation against the live
- * balance, interest/principal split, installment and loan status updates — runs
- * inside one serializable transaction so a failure leaves no partial state.
+ * balance, the split between interest and principal, installment and loan
+ * status updates — runs inside one serializable transaction so a failure
+ * leaves no partial state.
  */
 export async function registerPayment(input: PaymentInput): Promise<RegisterPaymentResult> {
   // Serializable transactions can be aborted when two payments race; retrying
@@ -43,6 +61,111 @@ export async function registerPayment(input: PaymentInput): Promise<RegisterPaym
         error.code === SERIALIZATION_FAILURE &&
         attempt < MAX_ATTEMPTS;
       if (!retryable) throw error;
+    }
+  }
+}
+
+function toBalances(installments: InstallmentRow[]): InstallmentBalance[] {
+  return installments.map((i) => ({
+    id: i.id,
+    installmentNumber: i.installmentNumber,
+    principalAmount: i.principalAmount,
+    principalPaid: i.principalPaid,
+    interestAmount: i.interestAmount,
+    interestPaid: i.interestPaid,
+  }));
+}
+
+function amountError(message: string): ServiceError {
+  return new ServiceError(message, { amount: [message] });
+}
+
+/** AUTO and INTEREST_ONLY only move paid amounts; the schedule itself is untouched. */
+function applyDistribution(installments: InstallmentRow[], distribution: PaymentDistribution): InstallmentUpdate[] {
+  return distribution.allocations.flatMap((allocation) => {
+    const current = installments.find((i) => i.id === allocation.installmentId);
+    if (!current) return [];
+    return [
+      {
+        id: current.id,
+        principalAmount: toDecimal(current.principalAmount),
+        interestAmount: toDecimal(current.interestAmount),
+        principalPaid: toDecimal(current.principalPaid).plus(allocation.principalPaid),
+        interestPaid: toDecimal(current.interestPaid).plus(allocation.interestPaid),
+      },
+    ];
+  });
+}
+
+function planPayment(loan: LoanWithInstallments, input: PaymentInput) {
+  const amount = toDecimal(input.amount);
+  const balances = toBalances(loan.installments);
+  const remaining = calculateRemainingBalance(balances);
+
+  switch (input.kind) {
+    case "AUTO": {
+      if (amount.gt(remaining.total)) {
+        throw amountError(`El pago supera el saldo pendiente (${formatMoney(remaining.total.toNumber())})`);
+      }
+      const distribution = calculatePaymentDistribution(balances, amount, input.installmentId);
+      if (distribution.unallocated.gt(0)) {
+        throw amountError("El pago supera lo pendiente desde la cuota seleccionada");
+      }
+      return { distribution, updates: applyDistribution(loan.installments, distribution) };
+    }
+    case "INTEREST_ONLY": {
+      if (remaining.interest.lte(0)) {
+        throw amountError("Este préstamo no tiene intereses pendientes");
+      }
+      if (amount.gt(remaining.interest)) {
+        throw amountError(`El pago supera los intereses pendientes (${formatMoney(remaining.interest.toNumber())})`);
+      }
+      const distribution = calculateInterestOnlyDistribution(balances, amount, input.installmentId);
+      if (distribution.unallocated.gt(0)) {
+        throw amountError("El pago supera los intereses pendientes desde la cuota seleccionada");
+      }
+      return { distribution, updates: applyDistribution(loan.installments, distribution) };
+    }
+    case "PRINCIPAL": {
+      if (remaining.principal.lte(0)) {
+        throw amountError("Este préstamo no tiene capital pendiente");
+      }
+      if (amount.gt(remaining.principal)) {
+        throw amountError(`El abono supera el capital pendiente (${formatMoney(remaining.principal.toNumber())})`);
+      }
+      const prepayment = calculatePrincipalPrepayment(
+        loan.installments.map((i) => ({
+          id: i.id,
+          installmentNumber: i.installmentNumber,
+          principalAmount: i.principalAmount,
+          principalPaid: i.principalPaid,
+          interestAmount: i.interestAmount,
+          interestPaid: i.interestPaid,
+          status: i.status,
+        })),
+        amount,
+        {
+          monthlyInterestRate: loan.monthlyInterestRate,
+          installmentFrequency: loan.installmentFrequency,
+          customIntervalDays: loan.customIntervalDays,
+        },
+      );
+      const distribution: PaymentDistribution = {
+        allocations: prepayment.allocations,
+        principalPaid: prepayment.principalPaid,
+        interestPaid: ZERO,
+        unallocated: ZERO,
+      };
+      return {
+        distribution,
+        updates: prepayment.installments.map((i) => ({
+          id: i.id,
+          principalAmount: i.principalAmount,
+          interestAmount: i.interestAmount,
+          principalPaid: i.principalPaid,
+          interestPaid: i.interestPaid,
+        })),
+      };
     }
   }
 }
@@ -76,32 +199,14 @@ async function applyPayment(input: PaymentInput): Promise<RegisterPaymentResult>
         }
       }
 
-      const balances: InstallmentBalance[] = loan.installments.map((i) => ({
-        id: i.id,
-        installmentNumber: i.installmentNumber,
-        principalAmount: i.principalAmount,
-        principalPaid: i.principalPaid,
-        interestAmount: i.interestAmount,
-        interestPaid: i.interestPaid,
-      }));
-
-      const remaining = calculateRemainingBalance(balances);
+      const { distribution, updates } = planPayment(loan, input);
       const amount = toDecimal(input.amount);
-      if (amount.gt(remaining.total)) {
-        const message = `El pago supera el saldo pendiente (${formatMoney(remaining.total.toNumber())})`;
-        throw new ServiceError(message, { amount: [message] });
-      }
-
-      const distribution = calculatePaymentDistribution(balances, amount, input.installmentId);
-      if (distribution.unallocated.gt(0)) {
-        const message = "El pago supera lo pendiente desde la cuota seleccionada";
-        throw new ServiceError(message, { amount: [message] });
-      }
 
       const payment = await tx.payment.create({
         data: {
           loanId: loan.id,
           installmentId: input.installmentId,
+          kind: input.kind,
           amount: toDbString(amount),
           principalPaid: toDbString(distribution.principalPaid),
           interestPaid: toDbString(distribution.interestPaid),
@@ -122,26 +227,28 @@ async function applyPayment(input: PaymentInput): Promise<RegisterPaymentResult>
       const today = todayIso();
       const statuses = new Map(loan.installments.map((i) => [i.id, i.status]));
 
-      for (const allocation of distribution.allocations) {
-        const current = loan.installments.find((i) => i.id === allocation.installmentId);
+      for (const update of updates) {
+        const current = loan.installments.find((i) => i.id === update.id);
         if (!current) continue;
 
-        const principalPaid = toDecimal(current.principalPaid).plus(allocation.principalPaid);
-        const interestPaid = toDecimal(current.interestPaid).plus(allocation.interestPaid);
-        const paidAmount = principalPaid.plus(interestPaid);
+        const totalAmount = update.principalAmount.plus(update.interestAmount);
+        const paidAmount = update.principalPaid.plus(update.interestPaid);
         const status = resolveInstallmentStatus(
-          { totalAmount: current.totalAmount, paidAmount, dueDate: toIsoDate(current.dueDate) },
+          { totalAmount, paidAmount, dueDate: toIsoDate(current.dueDate) },
           today,
         );
 
         await tx.installment.update({
           where: { id: current.id },
           data: {
-            principalPaid: toDbString(principalPaid),
-            interestPaid: toDbString(interestPaid),
+            principalAmount: toDbString(update.principalAmount),
+            interestAmount: toDbString(update.interestAmount),
+            totalAmount: toDbString(totalAmount),
+            principalPaid: toDbString(update.principalPaid),
+            interestPaid: toDbString(update.interestPaid),
             paidAmount: toDbString(paidAmount),
             status,
-            paidAt: status === "PAID" ? fromIsoDate(input.paymentDate) : null,
+            paidAt: status === "PAID" ? (current.paidAt ?? fromIsoDate(input.paymentDate)) : null,
           },
         });
         statuses.set(current.id, status);
@@ -154,6 +261,7 @@ async function applyPayment(input: PaymentInput): Promise<RegisterPaymentResult>
 
       return {
         paymentId: payment.id,
+        kind: input.kind,
         interestPaid: distribution.interestPaid.toNumber(),
         principalPaid: distribution.principalPaid.toNumber(),
         loanStatus,

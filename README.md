@@ -135,8 +135,12 @@ docs/superpowers/specs/  diseño del sistema
 - Interés `SIMPLE`: interés fijo sobre el capital inicial en cada cuota
   (`capital × tasa mensual × meses por periodo`); el capital se reparte en partes iguales
   y el residuo va a la última cuota.
-- Los pagos se aplican cuota por cuota, primero al interés pendiente y luego al capital;
-  el sobrante pasa a la siguiente cuota. Un pago no puede superar el saldo del préstamo.
+- Al registrar un pago se elige a qué se aplica:
+  - **Cuota (automático)**: cuota por cuota, primero al interés pendiente y luego al capital;
+    el sobrante pasa a la siguiente cuota. No puede superar el saldo del préstamo.
+  - **Solo intereses**: cubre únicamente intereses pendientes; el capital no cambia.
+  - **Abono a capital**: reduce el capital pendiente y recalcula las cuotas restantes sobre el
+    nuevo saldo (menos interés de ahí en adelante). El interés ya cobrado no se reduce.
 - Estados vencidos se sincronizan al consultar (no requiere cron).
 
 La lógica vive en `src/lib/calculations/` y tiene pruebas unitarias (`npm test`).
