@@ -146,12 +146,12 @@ Capitalia puede recibir los correos de alerta de tu banco y proponerte cada movi
 **Finanzas → Bandeja del banco**, donde lo confirmas (o corriges tipo, monto, fecha y
 categoría) con un clic. Nada se registra sin tu confirmación.
 
-1. Define `INBOX_TOKEN` (32+ caracteres aleatorios) en tu entorno (Vercel → Environment
-   Variables) y vuelve a desplegar.
+1. En la app: **Configuración → Bandeja del banco → Generar clave**. Se muestra el script de
+   Google ya listo con tu URL y tu clave (la clave se guarda cifrada y no se vuelve a mostrar).
 2. En Gmail, crea un filtro para los correos de tu banco que aplique la etiqueta `capitalia`.
-3. Copia [docs/gmail-capitalia.gs](docs/gmail-capitalia.gs) en un proyecto de
-   [script.google.com](https://script.google.com), pon tu URL y tu `INBOX_TOKEN`, ejecútalo una
-   vez para autorizarlo y crea un activador cada 5 minutos.
+3. Pega el script en un proyecto de [script.google.com](https://script.google.com), ejecútalo una
+   vez para autorizarlo y crea un activador cada 5 minutos. (Como alternativa también se acepta
+   la variable de entorno `INBOX_TOKEN`.)
 
 El endpoint `POST /api/inbox` acepta `{ "source": "email" | "sms", "messages": [{ externalId,
 receivedAt, sender, subject, text }] }` con `Authorization: Bearer <INBOX_TOKEN>`; es
