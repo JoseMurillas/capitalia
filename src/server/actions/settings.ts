@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { changePasswordSchema, profileSchema } from "@/lib/validations/auth";
 import { parseInput, runAction } from "@/server/action-utils";
 import { requireSession } from "@/server/auth";
+import { rotateInboxToken } from "@/server/services/settings";
 import { type ActionResult, fail, ok } from "@/types";
 
 const BCRYPT_ROUNDS = 12;
@@ -61,5 +62,14 @@ export async function changePasswordAction(input: unknown): Promise<ActionResult
       data: { passwordHash: await hash(parsed.data.newPassword, BCRYPT_ROUNDS) },
     });
     return ok(undefined);
+  });
+}
+
+export async function rotateInboxTokenAction(): Promise<ActionResult<{ token: string }>> {
+  return runAction(async () => {
+    await requireSession();
+    const token = await rotateInboxToken();
+    revalidatePath("/configuracion");
+    return ok({ token });
   });
 }

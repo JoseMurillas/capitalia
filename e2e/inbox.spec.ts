@@ -2,20 +2,35 @@ import { expect, test } from "@playwright/test";
 
 import { login } from "./helpers";
 
-const TOKEN = process.env.INBOX_TOKEN ?? "";
 const TAG = Date.now().toString(36);
 
 test.describe("bank inbox", () => {
-  test.skip(!TOKEN, "INBOX_TOKEN is not set in this environment");
+  test("generates a token in settings, receives bank emails and confirms one as an expense", async ({ page, request }) => {
+    await login(page);
 
-  test("rejects deliveries without the token", async ({ request }) => {
-    const response = await request.post("/api/inbox", {
+    // The token is created from the app itself, no environment variable needed.
+    await page.goto("/configuracion");
+    const card = page.locator("[data-slot=card]", { hasText: "Bandeja del banco" });
+    await card.getByRole("button", { name: /Generar clave/ }).click();
+    const rotateDialog = page.getByRole("alertdialog");
+    if (await rotateDialog.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await rotateDialog.getByRole("button", { name: "Generar" }).click();
+    }
+    const script = card.getByLabel("Script de Google Apps Script");
+    await expect(script).toBeVisible();
+    const scriptText = await script.inputValue();
+    const token = /const CAPITALIA_TOKEN = "([a-f0-9]+)"/.exec(scriptText)?.[1];
+    expect(token).toBeTruthy();
+    expect(scriptText).toContain("/api/inbox");
+
+    const noToken = await request.post("/api/inbox", { data: { source: "email", messages: [] } });
+    expect(noToken.status()).toBe(401);
+    const wrongToken = await request.post("/api/inbox", {
+      headers: { Authorization: "Bearer not-the-token" },
       data: { source: "email", messages: [] },
     });
-    expect(response.status()).toBe(401);
-  });
+    expect(wrongToken.status()).toBe(401);
 
-  test("receives bank emails and turns a confirmed one into an expense", async ({ page, request }) => {
     const payload = {
       source: "email",
       messages: [
@@ -35,22 +50,16 @@ test.describe("bank inbox", () => {
         },
       ],
     };
+    const auth = { Authorization: `Bearer ${token}` };
 
-    const first = await request.post("/api/inbox", {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-      data: payload,
-    });
+    const first = await request.post("/api/inbox", { headers: auth, data: payload });
     expect(first.status()).toBe(200);
     expect(await first.json()).toEqual({ received: 2, skipped: 0 });
 
     // Re-delivering the same emails is a no-op.
-    const again = await request.post("/api/inbox", {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-      data: payload,
-    });
+    const again = await request.post("/api/inbox", { headers: auth, data: payload });
     expect(await again.json()).toEqual({ received: 0, skipped: 2 });
 
-    await login(page);
     await page.goto("/finanzas");
     await page.getByRole("link", { name: /Bandeja del banco/ }).click();
     await expect(page).toHaveURL(/\/finanzas\/bandeja$/);
@@ -67,11 +76,11 @@ test.describe("bank inbox", () => {
 
     // Confirm the purchase with the suggested values.
     await purchase.getByRole("button", { name: "Confirmar" }).click();
-    const dialog = page.getByRole("dialog", { name: "Confirmar movimiento" });
-    await expect(dialog.getByLabel("Monto")).toHaveValue("45000");
-    await expect(dialog.getByLabel("Fecha")).toHaveValue("2026-09-20");
-    await dialog.getByRole("button", { name: "Guardar movimiento" }).click();
-    await expect(dialog).toBeHidden();
+    const confirm = page.getByRole("dialog", { name: "Confirmar movimiento" });
+    await expect(confirm.getByLabel("Monto")).toHaveValue("45000");
+    await expect(confirm.getByLabel("Fecha")).toHaveValue("2026-09-20");
+    await confirm.getByRole("button", { name: "Guardar movimiento" }).click();
+    await expect(confirm).toBeHidden();
     await expect(purchase).toBeHidden();
 
     // The borrower's transfer is a loan payment, not personal income: discard it.

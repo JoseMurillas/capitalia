@@ -1,27 +1,19 @@
-import { timingSafeEqual } from "node:crypto";
-
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { inboxPayloadSchema } from "@/lib/validations/inbox";
 import { receiveInboxMessages } from "@/server/services/inbox";
+import { verifyInboxToken } from "@/server/services/settings";
 
 /**
  * Receives bank notifications forwarded by an automation (Gmail Apps Script,
- * iOS Shortcut…). Not a user session: the caller proves itself with the
- * INBOX_TOKEN secret in the Authorization header.
+ * iOS Shortcut…). Not a user session: the caller proves itself with the inbox
+ * token (generated in Configuración) in the Authorization header.
  */
-function authorized(request: Request): boolean {
-  const expected = process.env.INBOX_TOKEN;
-  if (!expected || expected.length < 16) return false;
+export async function POST(request: Request) {
   const header = request.headers.get("authorization") ?? "";
   const provided = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
-  if (provided.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
-}
-
-export async function POST(request: Request) {
-  if (!authorized(request)) {
+  if (!(await verifyInboxToken(provided))) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 

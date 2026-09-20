@@ -254,3 +254,12 @@ model InboxMessage {
   @@index([status, receivedAt])
   @@map("inbox_messages")
 }
+
+/// Small key/value store for settings edited from the app (e.g. the inbox token hash).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}

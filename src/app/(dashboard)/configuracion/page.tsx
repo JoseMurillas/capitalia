@@ -1,16 +1,22 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
+import { InboxSetupCard } from "@/components/settings/inbox-setup-card";
 import { PasswordForm } from "@/components/settings/password-form";
 import { ProfileForm } from "@/components/settings/profile-form";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { INTEREST_TYPE_LABELS } from "@/lib/labels";
 import { requireSession } from "@/server/auth";
+import { hasInboxToken } from "@/server/services/settings";
 
 export const metadata: Metadata = { title: "Configuración" };
 
 export default async function SettingsPage() {
-  const user = await requireSession();
+  const [user, headerStore, inboxConfigured] = await Promise.all([requireSession(), headers(), hasInboxToken()]);
+  const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host") ?? "localhost:3000";
+  const protocol = headerStore.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const endpointUrl = `${protocol}://${host}/api/inbox`;
 
   return (
     <>
@@ -18,6 +24,7 @@ export default async function SettingsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <ProfileForm user={{ name: user.name, email: user.email }} />
         <PasswordForm />
+        <InboxSetupCard endpointUrl={endpointUrl} hasToken={inboxConfigured} />
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Reglas financieras</CardTitle>
