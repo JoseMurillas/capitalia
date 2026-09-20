@@ -1,13 +1,17 @@
-import { ArrowDownRight, ArrowUpRight, PiggyBank, Scale } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Inbox, PiggyBank, Scale } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { TransactionsList } from "@/components/finance/transactions-list";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatMonth, monthKey } from "@/lib/dates";
 import { getEnum, getIsoDate, getPage } from "@/lib/search-params";
 import { TRANSACTION_CATEGORIES, TRANSACTION_TYPES } from "@/lib/validations/transaction";
+import { countPendingInbox } from "@/server/queries/inbox";
 import { getFinanceSummary, listTransactions } from "@/server/queries/transactions";
 
 export const metadata: Metadata = { title: "Finanzas" };
@@ -20,9 +24,10 @@ export default async function FinancePage({ searchParams }: PageProps<"/finanzas
   const category = getEnum(params, "category", TRANSACTION_CATEGORIES);
   const page = getPage(params);
 
-  const [summary, result] = await Promise.all([
+  const [summary, result, pendingInbox] = await Promise.all([
     getFinanceSummary(),
     listTransactions({ from, to, type, category, page }),
+    countPendingInbox(),
   ]);
 
   const hasFilters = Boolean(from || to || type || category);
@@ -33,6 +38,19 @@ export default async function FinancePage({ searchParams }: PageProps<"/finanzas
       <PageHeader
         title="Finanzas personales"
         description="Tus ingresos y gastos, separados del dinero que prestas."
+        actions={
+          <Button variant={pendingInbox > 0 ? "default" : "outline"} asChild>
+            <Link href="/finanzas/bandeja">
+              <Inbox aria-hidden="true" />
+              Bandeja del banco
+              {pendingInbox > 0 ? (
+                <Badge variant="secondary" className="ml-1 tabular-nums">
+                  {pendingInbox}
+                </Badge>
+              ) : null}
+            </Link>
+          </Button>
+        }
       />
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">

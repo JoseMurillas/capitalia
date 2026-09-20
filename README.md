@@ -140,6 +140,24 @@ e2e/                  pruebas Playwright (flujo completo y navegación móvil)
 docs/superpowers/specs/  diseño del sistema
 ```
 
+## Bandeja del banco (gastos automáticos por correo)
+
+Capitalia puede recibir los correos de alerta de tu banco y proponerte cada movimiento en
+**Finanzas → Bandeja del banco**, donde lo confirmas (o corriges tipo, monto, fecha y
+categoría) con un clic. Nada se registra sin tu confirmación.
+
+1. Define `INBOX_TOKEN` (32+ caracteres aleatorios) en tu entorno (Vercel → Environment
+   Variables) y vuelve a desplegar.
+2. En Gmail, crea un filtro para los correos de tu banco que aplique la etiqueta `capitalia`.
+3. Copia [docs/gmail-capitalia.gs](docs/gmail-capitalia.gs) en un proyecto de
+   [script.google.com](https://script.google.com), pon tu URL y tu `INBOX_TOKEN`, ejecútalo una
+   vez para autorizarlo y crea un activador cada 5 minutos.
+
+El endpoint `POST /api/inbox` acepta `{ "source": "email" | "sms", "messages": [{ externalId,
+receivedAt, sender, subject, text }] }` con `Authorization: Bearer <INBOX_TOKEN>`; es
+idempotente (un mismo `externalId` no se duplica), así que también sirve desde un Atajo de
+iOS para SMS o desde cualquier otra automatización.
+
 ## Reglas financieras
 
 - El dinero se almacena como `Decimal(15,2)` y se calcula en el servidor con `decimal.js`.

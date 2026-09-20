@@ -202,7 +202,55 @@ model Transaction {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
+  inboxMessage InboxMessage?
+
   @@index([transactionDate])
   @@index([type, category])
   @@map("transactions")
+}
+
+// ---------------------------------------------------------------------------
+// Inbox: bank notifications (email/SMS) waiting to be confirmed as transactions
+// ---------------------------------------------------------------------------
+
+enum InboxSource {
+  EMAIL
+  SMS
+}
+
+enum InboxStatus {
+  PENDING
+  CONFIRMED
+  DISCARDED
+}
+
+enum InboxDirection {
+  INCOME
+  EXPENSE
+  UNKNOWN
+}
+
+model InboxMessage {
+  id            String         @id @default(cuid(2))
+  source        InboxSource
+  /// Id in the source system (Gmail message id); makes re-deliveries idempotent.
+  externalId    String
+  receivedAt    DateTime
+  sender        String?
+  subject       String?
+  body          String
+  status        InboxStatus    @default(PENDING)
+  /// Fields extracted by the parser; the user can correct them before confirming.
+  amount        Decimal?       @db.Decimal(15, 2)
+  direction     InboxDirection @default(UNKNOWN)
+  description   String?
+  suggestedDate DateTime?      @db.Date
+  transactionId String?        @unique
+  transaction   Transaction?   @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([source, externalId])
+  @@index([status, receivedAt])
+  @@map("inbox_messages")
 }

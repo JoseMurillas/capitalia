@@ -1,9 +1,12 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { toDbString } from "@/lib/calculations";
 import { fromIsoDate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import type { TransactionInput } from "@/lib/validations/transaction";
 
 import { NotFoundError } from "../errors";
+
+type Db = Prisma.TransactionClient | typeof prisma;
 
 function toData(input: TransactionInput) {
   return {
@@ -16,8 +19,9 @@ function toData(input: TransactionInput) {
   };
 }
 
-export async function createTransaction(input: TransactionInput) {
-  return prisma.transaction.create({ data: toData(input), select: { id: true } });
+/** `db` lets callers run the insert inside their own transaction. */
+export async function createTransaction(input: TransactionInput, db: Db = prisma) {
+  return db.transaction.create({ data: toData(input), select: { id: true } });
 }
 
 export async function updateTransaction(id: string, input: TransactionInput) {
