@@ -4,7 +4,44 @@ import { parseBankMessage } from "./parse-bank-message";
 
 const RECEIVED = "2026-09-20";
 
+const BBVA_PURCHASE = `Si no puedes ver este correo accede a la versión Web
+
+Hola,
+Jose Alejandro
+
+Ref:13016222
+
+En BBVA nos transformamos para poner en tus manos todas las oportunidades del mundo. A continuación encuentras el comprobante de la transacción que realizaste.
+
+Detalles de la operación:
+Tarjeta terminada en: *4793
+Fecha de la operación: 2026-09-14
+Establecimiento: Bodyshop muscle
+Valor: $6,500.00
+Hora: 18:17
+Gracias por utilizar nuestros Canales Transaccionales. Bogotá: 401 00 00 Línea nacional: 01 8000 912227
+© 2019 BBVA Colombia Carrera 9 #72-21, Bogotá, CO`;
+
 describe("parseBankMessage", () => {
+  it("reads a real BBVA 'Compra Exitosa' email with labelled fields", () => {
+    const result = parseBankMessage({ subject: "Compra Exitosa", text: BBVA_PURCHASE, receivedDate: RECEIVED });
+    expect(result).toMatchObject({
+      amount: 6500,
+      direction: "EXPENSE",
+      description: "Bodyshop muscle",
+      transactionDate: "2026-09-14",
+    });
+  });
+
+  it("reads a BBVA transfer with labelled beneficiary and value", () => {
+    const result = parseBankMessage({
+      subject: "Transferencia Exitosa",
+      text: "Detalles de la operación:\nCuenta origen: *1234\nBeneficiario: Juan Perez\nValor: $250,000.00\nFecha de la operación: 2026-09-15\nHora: 09:10",
+      receivedDate: RECEIVED,
+    });
+    expect(result).toMatchObject({ amount: 250000, direction: "EXPENSE", description: "Juan Perez", transactionDate: "2026-09-15" });
+  });
+
   it("reads a Bancolombia purchase alert", () => {
     const result = parseBankMessage({
       subject: "Alertas y Notificaciones",

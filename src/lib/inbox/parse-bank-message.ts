@@ -29,7 +29,17 @@ const MONTHS: Record<string, number> = {
 };
 
 const INCOME_WORDS = /recibiste|recibio|recibida|abono|consignacion|deposito|te enviaron|ingreso|credito a tu|acreditad|pago recibido|te pagaron/;
-const EXPENSE_WORDS = /compra|pago\b|pagaste|enviaste|transferencia enviada|transferiste|retiro|debito|cargo|cobro|avance|domiciliacion|suscripcion/;
+const EXPENSE_WORDS = /compra|pago\b|pagaste|enviaste|transferencia (enviada|exitosa|realizada)|transferiste|retiro|debito|cargo|cobro|avance|domiciliacion|suscripcion/;
+
+// Banks that lay the receipt out as "Etiqueta: valor" lines (BBVA, Davivienda…).
+const LABELLED_AMOUNT = /(?:valor|monto|importe|total)\s*(?:de la (?:compra|transaccion|operacion))?\s*:\s*(?:cop|\$)?\s*([\d.,]+)/i;
+// Ordered by how specific the label is; "cuenta origen: *1234" must not win over "beneficiario".
+const LABELLED_NAMES = [
+  /(?:establecimiento|comercio|beneficiario|destinatario|remitente|de parte de)\s*:\s*([^\n]+)/i,
+  /(?:descripcion|concepto)\s*:\s*([^\n]+)/i,
+  /(?<!cuenta )(?<!cuenta de )origen\s*:\s*([^\n]+)/i,
+];
+const LABELLED_DATE = /fecha[^:\n]*:\s*([^\n]+)/i;
 
 // Money: "$45.000,00", "$ 1.250.000", "COP 350,000.00", "45.000 pesos".
 const MONEY = /(?:\$|cop\s?\$?|usd)\s*([\d.,]+)|([\d][\d.,]*)\s*pesos/gi;
@@ -69,14 +79,15 @@ function toIso(year: number, month: number, day: number): string | null {
 }
 
 export function extractDate(text: string): string | null {
-  const numeric = /(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/.exec(text);
-  if (numeric) {
-    const iso = toIso(Number(numeric[3]), Number(numeric[2]), Number(numeric[1]));
-    if (iso) return iso;
-  }
-  const iso = /(\d{4})-(\d{2})-(\d{2})/.exec(text);
+  // ISO first: "2026-09-14" would otherwise be misread as 26/09/14 by the dd/MM/yy pattern.
+  const iso = /(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)/.exec(text);
   if (iso) {
     const value = toIso(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+    if (value) return value;
+  }
+  const numeric = /(?<!\d)(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})(?!\d)/.exec(text);
+  if (numeric) {
+    const value = toIso(Number(numeric[3]), Number(numeric[2]), Number(numeric[1]));
     if (value) return value;
   }
   const spelled = /(\d{1,2})\s+de\s+([a-záéíóú]+)\s+(?:de\s+)?(\d{4})/i.exec(normalizeText(text));
@@ -111,7 +122,32 @@ export function extractCounterparty(text: string, direction: ParsedBankMessage["
   return null;
 }
 
+/** "Etiqueta: valor" receipts keep their line breaks; read those fields before flattening. */
+function extractLabelledFields(rawText: string) {
+  const lines = rawText.replace(/\r/g, "").replace(/[ \t]+/g, " ");
+  const amountMatch = LABELLED_AMOUNT.exec(normalizeText(lines));
+  const dateMatch = LABELLED_DATE.exec(lines);
+
+  let name: string | null = null;
+  for (const pattern of LABELLED_NAMES) {
+    const match = pattern.exec(lines);
+    const candidate = match ? cleanName(match[1]) : "";
+    // Account masks ("*1234") and bare numbers are not names.
+    if (candidate.length >= 2 && !/^[*\d]/.test(candidate)) {
+      name = candidate;
+      break;
+    }
+  }
+
+  return {
+    amount: amountMatch ? parseMoney(amountMatch[1]) : null,
+    name,
+    date: dateMatch ? extractDate(dateMatch[1]) : null,
+  };
+}
+
 export function parseBankMessage(message: BankMessage): ParsedBankMessage {
+  const labelled = extractLabelledFields(message.text);
   const text = message.text.replace(/\s+/g, " ").trim();
   const normalized = normalizeText(`${message.subject ?? ""} ${text}`);
 
@@ -119,10 +155,12 @@ export function parseBankMessage(message: BankMessage): ParsedBankMessage {
   if (INCOME_WORDS.test(normalized)) direction = "INCOME";
   else if (EXPENSE_WORDS.test(normalized)) direction = "EXPENSE";
 
-  const amount = extractAmount(text);
-  const counterparty = extractCounterparty(text, direction === "INCOME" ? "INCOME" : "EXPENSE");
+  const amount = labelled.amount ?? extractAmount(text);
+  const counterparty =
+    (labelled.name && labelled.name.length >= 2 ? labelled.name : null) ??
+    extractCounterparty(text, direction === "INCOME" ? "INCOME" : "EXPENSE");
   const description = counterparty ?? message.subject?.trim() ?? text.slice(0, 80);
-  const transactionDate = extractDate(text) ?? message.receivedDate;
+  const transactionDate = labelled.date ?? extractDate(text) ?? message.receivedDate;
   const category = guessCategory(direction === "INCOME" ? "INCOME" : "EXPENSE", `${description} ${text}`);
 
   return { amount, direction, description: description.slice(0, 200), transactionDate, category };
