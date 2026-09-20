@@ -33,6 +33,48 @@ describe("parseBankMessage", () => {
     });
   });
 
+  it("recognises BBVA login/security notices as non-transactional", () => {
+    const login = parseBankMessage({
+      subject: "Importante: Confirmación de ingreso en nuestros canales digitales.",
+      text: "Hola, te informamos que se realizó un ingreso a BBVA Net el 18/09/2026 a las 16:29. Si no fuiste tú, comunícate con la línea BBVA. Consulta desde $1 en nuestra app.",
+      receivedDate: RECEIVED,
+    });
+    expect(login.kind).toBe("NOTICE");
+    expect(login.direction).toBe("UNKNOWN");
+
+    const session = parseBankMessage({
+      subject: "¿Iniciaste otra sesión en tu App BBVA?, confirma esta información",
+      text: "Detectamos un inicio de sesión desde un nuevo dispositivo.",
+      receivedDate: RECEIVED,
+    });
+    expect(session.kind).toBe("NOTICE");
+  });
+
+  it("treats a Bre-B 'envío con llave' as money sent and 'recibiste dinero' as money received", () => {
+    const sent = parseBankMessage({
+      subject: "Tu envío con llave fue exitoso",
+      text: "Tu envío por $103,990.00 a la llave @juanp fue exitoso. Fecha: 2026-09-19. Bre-B.",
+      receivedDate: RECEIVED,
+    });
+    expect(sent).toMatchObject({ kind: "TRANSACTION", direction: "EXPENSE", amount: 103990 });
+
+    const received = parseBankMessage({
+      subject: "Recibiste dinero en tu cuenta a través de Bre-B.",
+      text: "Recibiste $58,500.00 de MARIA GOMEZ a través de Bre-B el 2026-09-10.",
+      receivedDate: RECEIVED,
+    });
+    expect(received).toMatchObject({ kind: "TRANSACTION", direction: "INCOME", amount: 58500 });
+  });
+
+  it("suggests the category from the merchant, not from the bank's marketing footer", () => {
+    const result = parseBankMessage({
+      subject: "Compra Exitosa",
+      text: `${BBVA_PURCHASE}\nAdemás con BBVA móvil podrás hacer pagos de servicios públicos e impuestos.`,
+      receivedDate: RECEIVED,
+    });
+    expect(result.category).toBe("OTHER_EXPENSE");
+  });
+
   it("reads a BBVA transfer with labelled beneficiary and value", () => {
     const result = parseBankMessage({
       subject: "Transferencia Exitosa",

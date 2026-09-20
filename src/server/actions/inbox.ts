@@ -6,7 +6,12 @@ import { idSchema } from "@/lib/validations/common";
 import { confirmInboxSchema } from "@/lib/validations/inbox";
 import { parseInput, runAction } from "@/server/action-utils";
 import { requireSession } from "@/server/auth";
-import { confirmInboxMessage, discardInboxMessage, restoreInboxMessage } from "@/server/services/inbox";
+import {
+  confirmInboxMessage,
+  discardInboxMessage,
+  reprocessPendingInbox,
+  restoreInboxMessage,
+} from "@/server/services/inbox";
 import { type ActionResult, ok } from "@/types";
 
 function revalidateInbox() {
@@ -46,5 +51,14 @@ export async function restoreInboxMessageAction(id: unknown): Promise<ActionResu
     await restoreInboxMessage(parsedId.data);
     revalidateInbox();
     return ok(undefined);
+  });
+}
+
+export async function reprocessInboxAction(): Promise<ActionResult<{ updated: number; discarded: number }>> {
+  return runAction(async () => {
+    await requireSession();
+    const result = await reprocessPendingInbox();
+    revalidateInbox();
+    return ok(result);
   });
 }

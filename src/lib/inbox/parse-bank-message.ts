@@ -16,6 +16,8 @@ export type BankMessage = {
 };
 
 export type ParsedBankMessage = {
+  /** NOTICE = login alerts, security warnings, marketing: nothing to record. */
+  kind: "TRANSACTION" | "NOTICE";
   amount: number | null;
   direction: "INCOME" | "EXPENSE" | "UNKNOWN";
   description: string;
@@ -23,13 +25,21 @@ export type ParsedBankMessage = {
   category: TransactionCategoryValue;
 };
 
+// Subjects/bodies that never describe a money movement.
+const NOTICE_PATTERNS =
+  /confirmacion de ingreso en nuestros canales|iniciaste otra sesion|inicio de sesion|ingreso a bbva net|clave dinamica|codigo de verificacion|codigo de seguridad|cambio de clave|actualiza tus datos|actualizacion de datos|extracto (ya )?(esta )?disponible|encuesta|te invitamos|nueva version de la app/;
+
+// The subject is the most reliable hint; the body is only a fallback.
+const INCOME_SUBJECT = /recibiste|recibid|recibio|abono|consignacion|deposito|te enviaron|te pagaron|dinero en tu cuenta/;
+const EXPENSE_SUBJECT = /compra|envio|enviaste|pago|retiro|transferencia|debito|cargo|cobro|avance/;
+
 const MONTHS: Record<string, number> = {
   enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
   julio: 7, agosto: 8, septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
 };
 
-const INCOME_WORDS = /recibiste|recibio|recibida|abono|consignacion|deposito|te enviaron|ingreso|credito a tu|acreditad|pago recibido|te pagaron/;
-const EXPENSE_WORDS = /compra|pago\b|pagaste|enviaste|transferencia (enviada|exitosa|realizada)|transferiste|retiro|debito|cargo|cobro|avance|domiciliacion|suscripcion/;
+const INCOME_WORDS = /recibiste|recibio|recibida|abono|consignacion|deposito|te enviaron|ingreso de dinero|credito a tu|acreditad|pago recibido|te pagaron/;
+const EXPENSE_WORDS = /compra|pago\b|pagaste|enviaste|tu envio|transferencia (enviada|exitosa|realizada)|transferiste|retiro|debito|cargo|cobro|avance|domiciliacion|suscripcion/;
 
 // Banks that lay the receipt out as "Etiqueta: valor" lines (BBVA, Davivienda…).
 const LABELLED_AMOUNT = /(?:valor|monto|importe|total)\s*(?:de la (?:compra|transaccion|operacion))?\s*:\s*(?:cop|\$)?\s*([\d.,]+)/i;
@@ -149,10 +159,25 @@ function extractLabelledFields(rawText: string) {
 export function parseBankMessage(message: BankMessage): ParsedBankMessage {
   const labelled = extractLabelledFields(message.text);
   const text = message.text.replace(/\s+/g, " ").trim();
+  const subject = normalizeText(message.subject ?? "");
   const normalized = normalizeText(`${message.subject ?? ""} ${text}`);
+  const transactionDate = labelled.date ?? extractDate(text) ?? message.receivedDate;
+
+  if (NOTICE_PATTERNS.test(subject) || (NOTICE_PATTERNS.test(normalized) && labelled.amount === null)) {
+    return {
+      kind: "NOTICE",
+      amount: null,
+      direction: "UNKNOWN",
+      description: (message.subject?.trim() || text.slice(0, 80)).slice(0, 200),
+      transactionDate,
+      category: "OTHER_EXPENSE",
+    };
+  }
 
   let direction: ParsedBankMessage["direction"] = "UNKNOWN";
-  if (INCOME_WORDS.test(normalized)) direction = "INCOME";
+  if (INCOME_SUBJECT.test(subject)) direction = "INCOME";
+  else if (EXPENSE_SUBJECT.test(subject)) direction = "EXPENSE";
+  else if (INCOME_WORDS.test(normalized)) direction = "INCOME";
   else if (EXPENSE_WORDS.test(normalized)) direction = "EXPENSE";
 
   const amount = labelled.amount ?? extractAmount(text);
@@ -160,8 +185,12 @@ export function parseBankMessage(message: BankMessage): ParsedBankMessage {
     (labelled.name && labelled.name.length >= 2 ? labelled.name : null) ??
     extractCounterparty(text, direction === "INCOME" ? "INCOME" : "EXPENSE");
   const description = counterparty ?? message.subject?.trim() ?? text.slice(0, 80);
-  const transactionDate = labelled.date ?? extractDate(text) ?? message.receivedDate;
-  const category = guessCategory(direction === "INCOME" ? "INCOME" : "EXPENSE", `${description} ${text}`);
+  // The counterparty drives the category; the opening of the body is a fallback, never the
+  // footer, because bank footers advertise every category ("pagos de servicios públicos…").
+  const type = direction === "INCOME" ? "INCOME" : "EXPENSE";
+  const fallback = type === "INCOME" ? "OTHER_INCOME" : "OTHER_EXPENSE";
+  let category = guessCategory(type, description);
+  if (category === fallback) category = guessCategory(type, text.slice(0, 160));
 
-  return { amount, direction, description: description.slice(0, 200), transactionDate, category };
+  return { kind: "TRANSACTION", amount, direction, description: description.slice(0, 200), transactionDate, category };
 }

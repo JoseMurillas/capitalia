@@ -13,7 +13,8 @@ const EXPENSE_RULES: Rule[] = [
     category: "TRANSPORT",
   },
   {
-    pattern: /exito|carulla|jumbo|olimpica|d1\b|ara\b|justo|makro|alkosto|mercado|supermercado|restaurante|rappi|domicilio|comida|panaderia|alimentacion|almuerzo/,
+    // Word boundaries matter: "exitoso" is not the Éxito supermarket.
+    pattern: /\bexito\b|carulla|jumbo|olimpica|\bd1\b|\bara\b|\bjusto\b|makro|alkosto|mercado|supermercado|restaurante|rappi|domicilio|comida|panaderia|alimentacion|almuerzo/,
     category: "FOOD",
   },
   { pattern: /netflix|spotify|disney|hbo|cine|teatro|bar\b|licor|entretenimiento|juego|steam|playstation|xbox/, category: "ENTERTAINMENT" },

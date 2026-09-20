@@ -1,25 +1,29 @@
 "use client";
 
-import { Check, Inbox, Mail, MessageSquare, RotateCcw, Trash2 } from "lucide-react";
+import { Check, Inbox, Mail, MessageSquare, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { MoneyDisplay } from "@/components/shared/money-display";
+import { TablePagination } from "@/components/shared/pagination";
+import { SearchInput } from "@/components/shared/search-input";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUrlParams } from "@/hooks/use-url-params";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { TRANSACTION_CATEGORY_LABELS } from "@/lib/labels";
-import { discardInboxMessageAction, restoreInboxMessageAction } from "@/server/actions/inbox";
+import { discardInboxMessageAction, reprocessInboxAction, restoreInboxMessageAction } from "@/server/actions/inbox";
 import type { InboxMessageDto } from "@/server/queries/inbox";
+import type { PaginatedResult } from "@/types";
 
 import { ConfirmInboxDialog } from "./confirm-inbox-dialog";
 
 type InboxListProps = {
-  messages: InboxMessageDto[];
+  result: PaginatedResult<InboxMessageDto>;
   status: "PENDING" | "CONFIRMED" | "DISCARDED";
+  query?: string;
 };
 
 const TABS = [
@@ -28,7 +32,8 @@ const TABS = [
   { value: "DISCARDED", label: "Descartados" },
 ] as const;
 
-export function InboxList({ messages, status }: InboxListProps) {
+export function InboxList({ result, status, query }: InboxListProps) {
+  const messages = result.items;
   const { setParams } = useUrlParams();
   const [confirming, setConfirming] = useState<InboxMessageDto | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -40,6 +45,13 @@ export function InboxList({ messages, status }: InboxListProps) {
       else toast.success("Mensaje descartado");
     });
 
+  const reprocess = () =>
+    startTransition(async () => {
+      const response = await reprocessInboxAction();
+      if (!response.success) toast.error(response.error);
+      else toast.success(`${response.data.updated} mensajes actualizados · ${response.data.discarded} avisos descartados`);
+    });
+
   const restore = (message: InboxMessageDto) =>
     startTransition(async () => {
       const result = await restoreInboxMessageAction(message.id);
@@ -49,24 +61,37 @@ export function InboxList({ messages, status }: InboxListProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Tabs value={status} onValueChange={(value) => setParams({ status: value === "PENDING" ? null : value })}>
-        <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
-          {TABS.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <Tabs value={status} onValueChange={(value) => setParams({ status: value === "PENDING" ? null : value }, { resetPage: true })}>
+          <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
+            {TABS.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value} className="shrink-0">
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <SearchInput placeholder="Buscar por comercio, asunto o remitente" />
+          {status === "PENDING" ? (
+            <Button variant="outline" onClick={reprocess} disabled={isPending}>
+              <RefreshCw aria-hidden="true" />
+              Volver a analizar
+            </Button>
+          ) : null}
+        </div>
+      </div>
 
       {messages.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          title={status === "PENDING" ? "Nada por clasificar" : "Sin mensajes"}
+          title={query ? "Sin resultados" : status === "PENDING" ? "Nada por clasificar" : "Sin mensajes"}
           description={
-            status === "PENDING"
-              ? "Cuando el banco te envíe un correo y tu automatización lo reenvíe, aparecerá aquí para que lo confirmes."
-              : undefined
+            query
+              ? "Prueba con otro texto."
+              : status === "PENDING"
+                ? "Cuando el banco te envíe un correo y tu automatización lo reenvíe, aparecerá aquí para que lo confirmes."
+                : undefined
           }
         />
       ) : (
@@ -135,6 +160,14 @@ export function InboxList({ messages, status }: InboxListProps) {
           })}
         </ul>
       )}
+
+      <TablePagination
+        page={result.page}
+        pageCount={result.pageCount}
+        total={result.total}
+        pageSize={result.pageSize}
+        itemLabel="mensajes"
+      />
 
       <ConfirmInboxDialog message={confirming} onOpenChange={(open) => !open && setConfirming(null)} />
     </div>

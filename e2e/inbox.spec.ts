@@ -48,21 +48,37 @@ test.describe("bank inbox", () => {
           subject: "Recibiste plata",
           text: `Recibiste una transferencia de MARIA GOMEZ ${TAG} por $700.000 el 19/09/2026.`,
         },
+        {
+          externalId: `msg-${TAG}-3`,
+          receivedAt: "2026-09-18T16:29:00-05:00",
+          sender: "BBVA <BBVA@bbvanet.com.co>",
+          subject: "Importante: Confirmación de ingreso en nuestros canales digitales.",
+          text: `Te informamos que se realizó un ingreso a BBVA Net el 18/09/2026 ${TAG}. Si no fuiste tú, comunícate con la línea BBVA.`,
+        },
       ],
     };
     const auth = { Authorization: `Bearer ${token}` };
 
     const first = await request.post("/api/inbox", { headers: auth, data: payload });
     expect(first.status()).toBe(200);
-    expect(await first.json()).toEqual({ received: 2, skipped: 0 });
+    expect(await first.json()).toEqual({ received: 3, skipped: 0 });
 
     // Re-delivering the same emails is a no-op.
     const again = await request.post("/api/inbox", { headers: auth, data: payload });
-    expect(await again.json()).toEqual({ received: 0, skipped: 2 });
+    expect(await again.json()).toEqual({ received: 0, skipped: 3 });
 
     await page.goto("/finanzas");
     await page.getByRole("link", { name: /Bandeja del banco/ }).click();
     await expect(page).toHaveURL(/\/finanzas\/bandeja$/);
+
+    // The login notice never reaches the pending list; it sits in "Descartados".
+    await expect(page.locator("li", { hasText: `ingreso a BBVA Net el 18/09/2026 ${TAG}` })).toHaveCount(0);
+
+    // Search narrows the list and "Volver a analizar" keeps the real movements.
+    await page.getByRole("searchbox").fill(TAG);
+    await expect(page.locator("li", { hasText: TAG })).toHaveCount(2);
+    await page.getByRole("button", { name: "Volver a analizar" }).click();
+    await expect(page.getByText(/avisos descartados/)).toBeVisible();
 
     const purchase = page.locator("li", { hasText: `EXITO CALLE 80 ${TAG}` });
     await expect(purchase).toBeVisible();
@@ -86,6 +102,9 @@ test.describe("bank inbox", () => {
     // The borrower's transfer is a loan payment, not personal income: discard it.
     await income.getByRole("button", { name: "Descartar" }).click();
     await expect(income).toBeHidden();
+
+    await page.goto("/finanzas/bandeja?status=DISCARDED&q=" + TAG);
+    await expect(page.locator("li", { hasText: `ingreso a BBVA Net el 18/09/2026 ${TAG}` })).toBeVisible();
 
     await page.goto("/finanzas?from=2026-09-20&to=2026-09-20");
     // The merchant is extracted in upper case, so the lower-case tag is not part of the description.

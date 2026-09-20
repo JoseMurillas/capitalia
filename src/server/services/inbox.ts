@@ -40,6 +40,8 @@ export async function receiveInboxMessages(payload: InboxPayload): Promise<{ rec
           sender: message.sender ?? null,
           subject: message.subject ?? null,
           body: message.text,
+          // Login alerts, security warnings and marketing skip the inbox entirely.
+          status: parsed.kind === "NOTICE" ? ("DISCARDED" as const) : ("PENDING" as const),
           amount: parsed.amount !== null ? toDbString(parsed.amount) : null,
           direction: parsed.direction,
           description: parsed.description,
@@ -82,4 +84,33 @@ export async function restoreInboxMessage(messageId: string) {
   if (!message) throw new NotFoundError("El mensaje");
   if (message.status !== "DISCARDED") throw new ServiceError("Solo se pueden restaurar mensajes descartados");
   await prisma.inboxMessage.update({ where: { id: messageId }, data: { status: "PENDING" } });
+}
+
+/**
+ * Re-runs the parser over every pending message, e.g. after the parser learns
+ * a new bank format. Notices are discarded; the rest get fresh suggestions.
+ */
+export async function reprocessPendingInbox(): Promise<{ updated: number; discarded: number }> {
+  const pending = await prisma.inboxMessage.findMany({ where: { status: "PENDING" } });
+  let discarded = 0;
+  for (const message of pending) {
+    const parsed = parseBankMessage({
+      subject: message.subject,
+      text: message.body,
+      receivedDate: toIsoDate(message.receivedAt),
+    });
+    const isNotice = parsed.kind === "NOTICE";
+    if (isNotice) discarded += 1;
+    await prisma.inboxMessage.update({
+      where: { id: message.id },
+      data: {
+        status: isNotice ? "DISCARDED" : "PENDING",
+        amount: parsed.amount !== null ? toDbString(parsed.amount) : null,
+        direction: parsed.direction,
+        description: parsed.description,
+        suggestedDate: fromIsoDate(parsed.transactionDate),
+      },
+    });
+  }
+  return { updated: pending.length - discarded, discarded };
 }
