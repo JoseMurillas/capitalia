@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import type { LoanInput } from "@/lib/validations/loan";
 
 import { NotFoundError, ServiceError } from "../errors";
+import { assertCashBoxUsable, assertSufficientBalance, recordLoanDisbursement, recordLoanReversal } from "./cash-boxes";
 
 /**
  * Creates a loan together with its full installment schedule in one atomic write.
@@ -16,7 +17,7 @@ import { NotFoundError, ServiceError } from "../errors";
 export async function createLoan(input: LoanInput) {
   const person = await prisma.person.findUnique({
     where: { id: input.personId },
-    select: { id: true, active: true },
+    select: { id: true, name: true, active: true },
   });
   if (!person) {
     throw new ServiceError("La persona seleccionada no existe", {
@@ -49,30 +50,47 @@ export async function createLoan(input: LoanInput) {
     );
   }
 
-  return prisma.loan.create({
-    data: {
-      personId: person.id,
-      principalAmount: toDbString(input.principalAmount),
-      monthlyInterestRate: input.monthlyInterestRate.toFixed(3),
-      interestType: input.interestType,
-      numberOfInstallments: input.numberOfInstallments,
-      installmentFrequency: input.installmentFrequency,
-      customIntervalDays:
-        input.installmentFrequency === "CUSTOM" ? input.customIntervalDays : null,
-      startDate: fromIsoDate(input.startDate),
-      dueDate: fromIsoDate(dueDate),
-      notes: input.notes,
-      installments: {
-        create: schedule.map((i) => ({
-          installmentNumber: i.installmentNumber,
-          dueDate: fromIsoDate(i.dueDate),
-          principalAmount: toDbString(i.principalAmount),
-          interestAmount: toDbString(i.interestAmount),
-          totalAmount: toDbString(i.totalAmount),
-        })),
+  // The money leaves a box, so the loan and its disbursement are written together.
+  return prisma.$transaction(async (tx) => {
+    const cashBox = await assertCashBoxUsable(tx, input.cashBoxId);
+    await assertSufficientBalance(tx, cashBox.id, input.principalAmount, "principalAmount");
+
+    const loan = await tx.loan.create({
+      data: {
+        personId: person.id,
+        cashBoxId: cashBox.id,
+        principalAmount: toDbString(input.principalAmount),
+        monthlyInterestRate: input.monthlyInterestRate.toFixed(3),
+        interestType: input.interestType,
+        numberOfInstallments: input.numberOfInstallments,
+        installmentFrequency: input.installmentFrequency,
+        customIntervalDays:
+          input.installmentFrequency === "CUSTOM" ? input.customIntervalDays : null,
+        startDate: fromIsoDate(input.startDate),
+        dueDate: fromIsoDate(dueDate),
+        notes: input.notes,
+        installments: {
+          create: schedule.map((i) => ({
+            installmentNumber: i.installmentNumber,
+            dueDate: fromIsoDate(i.dueDate),
+            principalAmount: toDbString(i.principalAmount),
+            interestAmount: toDbString(i.interestAmount),
+            totalAmount: toDbString(i.totalAmount),
+          })),
+        },
       },
-    },
-    select: { id: true },
+      select: { id: true },
+    });
+
+    await recordLoanDisbursement(tx, {
+      cashBoxId: cashBox.id,
+      loanId: loan.id,
+      amount: input.principalAmount,
+      movementDate: input.startDate,
+      personName: person.name,
+    });
+
+    return loan;
   });
 }
 
@@ -101,27 +119,68 @@ export async function updateLoanNotes(loanId: string, notes: string | null) {
 }
 
 export async function cancelLoan(loanId: string) {
-  const loan = await prisma.loan.findUnique({
-    where: { id: loanId },
-    select: { id: true, status: true, _count: { select: { payments: true } } },
+  await prisma.$transaction(async (tx) => {
+    const loan = await tx.loan.findUnique({
+      where: { id: loanId },
+      select: {
+        id: true,
+        status: true,
+        cashBoxId: true,
+        principalAmount: true,
+        person: { select: { name: true } },
+        _count: { select: { payments: true } },
+      },
+    });
+    if (!loan) throw new NotFoundError("El préstamo");
+    if (loan.status === "CANCELLED") throw new ServiceError("El préstamo ya está cancelado");
+    if (loan.status === "PAID") throw new ServiceError("No se puede cancelar un préstamo pagado");
+    if (loan._count.payments > 0) {
+      throw new ServiceError("No se puede cancelar un préstamo que ya tiene pagos registrados");
+    }
+
+    await tx.loan.update({ where: { id: loanId }, data: { status: "CANCELLED" } });
+
+    // Cancelling requires a loan without payments, so the whole capital goes back.
+    if (loan.cashBoxId) {
+      await recordLoanReversal(tx, {
+        cashBoxId: loan.cashBoxId,
+        loanId: loan.id,
+        amount: loan.principalAmount,
+        personName: loan.person.name,
+        reason: "CANCELLED",
+      });
+    }
   });
-  if (!loan) throw new NotFoundError("El préstamo");
-  if (loan.status === "CANCELLED") throw new ServiceError("El préstamo ya está cancelado");
-  if (loan.status === "PAID") throw new ServiceError("No se puede cancelar un préstamo pagado");
-  if (loan._count.payments > 0) {
-    throw new ServiceError("No se puede cancelar un préstamo que ya tiene pagos registrados");
-  }
-  await prisma.loan.update({ where: { id: loanId }, data: { status: "CANCELLED" } });
 }
 
 export async function deleteLoan(loanId: string) {
-  const loan = await prisma.loan.findUnique({
-    where: { id: loanId },
-    select: { id: true, _count: { select: { payments: true } } },
+  await prisma.$transaction(async (tx) => {
+    const loan = await tx.loan.findUnique({
+      where: { id: loanId },
+      select: {
+        id: true,
+        status: true,
+        cashBoxId: true,
+        principalAmount: true,
+        person: { select: { name: true } },
+        _count: { select: { payments: true } },
+      },
+    });
+    if (!loan) throw new NotFoundError("El préstamo");
+    if (loan._count.payments > 0) {
+      throw new ServiceError("No se puede eliminar un préstamo con pagos registrados");
+    }
+
+    if (loan.cashBoxId && loan.status !== "CANCELLED") {
+      await recordLoanReversal(tx, {
+        cashBoxId: loan.cashBoxId,
+        loanId: null,
+        amount: loan.principalAmount,
+        personName: loan.person.name,
+        reason: "DELETED",
+      });
+    }
+
+    await tx.loan.delete({ where: { id: loanId } });
   });
-  if (!loan) throw new NotFoundError("El préstamo");
-  if (loan._count.payments > 0) {
-    throw new ServiceError("No se puede eliminar un préstamo con pagos; cancélalo en su lugar");
-  }
-  await prisma.loan.delete({ where: { id: loanId } });
 }

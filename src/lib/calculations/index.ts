@@ -9,3 +9,4 @@ export * from "./prepayment";
 export * from "./recurring";
 export * from "./credit-cards";
 export * from "./commitments";
+export * from "./cash-boxes";

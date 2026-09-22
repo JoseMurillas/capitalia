@@ -1,7 +1,10 @@
+import { PiggyBank } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { LoansList } from "@/components/loans/loans-list";
 import { PageHeader } from "@/components/shared/page-header";
+import { Button } from "@/components/ui/button";
 import { getEnum, getPage, getString } from "@/lib/search-params";
 import { listLoans } from "@/server/queries/loans";
 
@@ -22,6 +25,14 @@ export default async function LoansPage({ searchParams }: PageProps<"/prestamos"
       <PageHeader
         title="Préstamos"
         description="Capital prestado, saldos y próximas cuotas de cada préstamo."
+        actions={
+          <Button variant="outline" asChild>
+            <Link href="/prestamos/cajas">
+              <PiggyBank aria-hidden="true" />
+              Cajas
+            </Link>
+          </Button>
+        }
       />
       <LoansList result={result} status={status} query={q} />
     </>

@@ -19,6 +19,7 @@ import { prisma } from "@/lib/prisma";
 import type { PaymentInput } from "@/lib/validations/payment";
 
 import { NotFoundError, ServiceError } from "../errors";
+import { recordLoanPayment } from "./cash-boxes";
 
 const SERIALIZATION_FAILURE = "P2034";
 const MAX_ATTEMPTS = 3;
@@ -175,7 +176,10 @@ async function applyPayment(input: PaymentInput): Promise<RegisterPaymentResult>
     async (tx) => {
       const loan = await tx.loan.findUnique({
         where: { id: input.loanId },
-        include: { installments: { orderBy: { installmentNumber: "asc" } } },
+        include: {
+          installments: { orderBy: { installmentNumber: "asc" } },
+          person: { select: { name: true } },
+        },
       });
       if (!loan) throw new NotFoundError("El préstamo");
       if (loan.status === "CANCELLED") {
@@ -257,6 +261,18 @@ async function applyPayment(input: PaymentInput): Promise<RegisterPaymentResult>
       const loanStatus = resolveLoanStatus([...statuses.values()], loan.status);
       if (loanStatus !== loan.status) {
         await tx.loan.update({ where: { id: loan.id }, data: { status: loanStatus } });
+      }
+
+      // The money comes back to the box the loan was funded from: capital and interest.
+      if (loan.cashBoxId) {
+        await recordLoanPayment(tx, {
+          cashBoxId: loan.cashBoxId,
+          loanId: loan.id,
+          paymentId: payment.id,
+          amount: input.amount,
+          movementDate: input.paymentDate,
+          personName: loan.person.name,
+        });
       }
 
       return {

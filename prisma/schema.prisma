@@ -95,6 +95,25 @@ enum CreditCardMovementKind {
   ADJUSTMENT
 }
 
+enum CashBoxMovementKind {
+  OPENING
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER_IN
+  TRANSFER_OUT
+  LOAN_DISBURSEMENT
+  LOAN_PAYMENT
+  LOAN_REVERSAL
+  LOAN_REASSIGNMENT
+  ADJUSTMENT
+}
+
+/// Where the money comes from or goes to on a deposit or a withdrawal.
+enum CashBoxCounterparty {
+  PERSONAL_FINANCES
+  EXTERNAL
+}
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
@@ -133,6 +152,10 @@ model Loan {
   id                   String               @id @default(cuid(2))
   personId             String
   person               Person               @relation(fields: [personId], references: [id], onDelete: Restrict)
+  /// Fund the money was lent from. Optional in the database so historical loans
+  /// survive the migration; required by the form.
+  cashBoxId            String?
+  cashBox              CashBox?             @relation(fields: [cashBoxId], references: [id], onDelete: Restrict)
   principalAmount      Decimal              @db.Decimal(15, 2)
   /// Monthly rate as a percentage, e.g. 12.000 means 12 % per month.
   monthlyInterestRate  Decimal              @db.Decimal(6, 3)
@@ -150,8 +173,10 @@ model Loan {
 
   installments Installment[]
   payments     Payment[]
+  cashBoxMovements CashBoxMovement[]
 
   @@index([personId])
+  @@index([cashBoxId])
   @@index([status])
   @@index([dueDate])
   @@map("loans")
@@ -198,6 +223,7 @@ model Payment {
   createdAt     DateTime      @default(now())
 
   allocations PaymentAllocation[]
+  cashBoxMovements CashBoxMovement[]
 
   @@index([loanId])
   @@index([paymentDate])
@@ -403,4 +429,54 @@ model CreditCardMovement {
 
   @@index([creditCardId, movementDate])
   @@map("credit_card_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Cash boxes: named funds the lending capital lives in
+// ---------------------------------------------------------------------------
+
+/// A fund the administrator lends from. Its balance is never stored: it is the
+/// sum of its movements, so no balance can change without a traceable row.
+model CashBox {
+  id          String   @id @default(cuid(2))
+  name        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  movements CashBoxMovement[]
+  loans     Loan[]
+
+  @@index([active, name])
+  @@map("cash_boxes")
+}
+
+/// One line of a cash box's ledger. `amount` is signed: positive enters the
+/// box, negative leaves it, so the balance is a single sum.
+model CashBoxMovement {
+  id               String               @id @default(cuid(2))
+  cashBoxId        String
+  cashBox          CashBox              @relation(fields: [cashBoxId], references: [id], onDelete: Cascade)
+  kind             CashBoxMovementKind
+  amount           Decimal              @db.Decimal(15, 2)
+  movementDate     DateTime             @db.Date
+  description      String
+  notes            String?
+  /// Only on DEPOSIT and WITHDRAWAL: personal finances or outside the system.
+  counterparty     CashBoxCounterparty?
+  /// The other box on a transfer or a loan reassignment.
+  relatedCashBoxId String?
+  /// Ties the two sides of a transfer or reassignment together.
+  transferGroupId  String?
+  loanId           String?
+  loan             Loan?                @relation(fields: [loanId], references: [id], onDelete: SetNull)
+  paymentId        String?
+  payment          Payment?             @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdAt        DateTime             @default(now())
+
+  @@index([cashBoxId, movementDate])
+  @@index([loanId])
+  @@index([transferGroupId])
+  @@map("cash_box_movements")
 }

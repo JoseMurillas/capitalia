@@ -4,10 +4,12 @@ import { revalidatePath } from "next/cache";
 
 import { calculateLoanDueDate, calculateLoanTotals, generateSchedule, toNumber } from "@/lib/calculations";
 import type { IsoDate } from "@/lib/dates";
+import { reassignLoanSchema } from "@/lib/validations/cash-box";
 import { idSchema, optionalTrimmed } from "@/lib/validations/common";
 import { loanSchema } from "@/lib/validations/loan";
 import { parseInput, runAction } from "@/server/action-utils";
 import { requireSession } from "@/server/auth";
+import { reassignLoanCashBox } from "@/server/services/cash-boxes";
 import { cancelLoan, createLoan, deleteLoan, updateLoanNotes } from "@/server/services/loans";
 import { type ActionResult, ok } from "@/types";
 
@@ -27,9 +29,12 @@ export type SchedulePreview = {
 
 function revalidateLoans(id?: string, personId?: string) {
   revalidatePath("/prestamos");
+  revalidatePath("/prestamos/cajas");
+  revalidatePath("/(dashboard)/prestamos/cajas/[id]", "page");
   revalidatePath("/pagos");
   revalidatePath("/dashboard");
   revalidatePath("/reportes");
+  revalidatePath("/finanzas");
   if (id) revalidatePath(`/prestamos/${id}`);
   if (personId) revalidatePath(`/personas/${personId}`);
   revalidatePath("/personas");
@@ -40,7 +45,10 @@ export async function previewScheduleAction(input: unknown): Promise<ActionResul
   return runAction(async () => {
     await requireSession();
     // personId is validated on save; the preview only needs the financial fields.
-    const parsed = parseInput(loanSchema.safeExtend({ personId: idSchema.catch("preview") }), input);
+    const parsed = parseInput(
+      loanSchema.safeExtend({ personId: idSchema.catch("preview"), cashBoxId: idSchema.catch("preview") }),
+      input,
+    );
     if (!parsed.ok) return parsed.result;
 
     const params = {
@@ -114,5 +122,21 @@ export async function deleteLoanAction(id: unknown): Promise<ActionResult> {
     await deleteLoan(parsedId.data);
     revalidateLoans(parsedId.data);
     return ok(undefined);
+  });
+}
+
+export async function reassignLoanCashBoxAction(
+  id: unknown,
+  input: unknown,
+): Promise<ActionResult<{ net: number; fromName: string; toName: string }>> {
+  return runAction(async () => {
+    await requireSession();
+    const parsedId = parseInput(idSchema, id);
+    if (!parsedId.ok) return parsedId.result;
+    const parsed = parseInput(reassignLoanSchema, input);
+    if (!parsed.ok) return parsed.result;
+    const result = await reassignLoanCashBox(parsedId.data, parsed.data.cashBoxId);
+    revalidateLoans(parsedId.data);
+    return ok(result);
   });
 }

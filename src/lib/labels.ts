@@ -1,4 +1,6 @@
 import type {
+  CashBoxCounterparty,
+  CashBoxMovementKind,
   CreditCardMovementKind,
   InstallmentFrequency,
   InstallmentStatus,
@@ -100,6 +102,24 @@ export const COMMITMENT_STATUS_LABELS: Record<CommitmentStatus, string> = {
   DUE_TODAY: "Vence hoy",
   ALERT: "Pronto",
   UPCOMING: "Programado",
+};
+
+export const CASH_BOX_MOVEMENT_KIND_LABELS: Record<CashBoxMovementKind, string> = {
+  OPENING: "Saldo inicial",
+  DEPOSIT: "Depósito",
+  WITHDRAWAL: "Retiro",
+  TRANSFER_IN: "Traslado recibido",
+  TRANSFER_OUT: "Traslado enviado",
+  LOAN_DISBURSEMENT: "Préstamo entregado",
+  LOAN_PAYMENT: "Pago recibido",
+  LOAN_REVERSAL: "Préstamo revertido",
+  LOAN_REASSIGNMENT: "Reasignación",
+  ADJUSTMENT: "Ajuste",
+};
+
+export const CASH_BOX_COUNTERPARTY_LABELS: Record<CashBoxCounterparty, string> = {
+  PERSONAL_FINANCES: "Finanzas personales",
+  EXTERNAL: "Externo",
 };
 
 /** "Vence en 3 días", "Vence hoy", "Venció hace 2 días". */

@@ -9,6 +9,7 @@ export const LOAN_STATUSES = ["ACTIVE", "PAID", "OVERDUE", "CANCELLED"] as const
 export const loanSchema = z
   .object({
     personId: idSchema,
+    cashBoxId: idSchema,
     principalAmount: moneySchema,
     monthlyInterestRate: z.coerce
       .number({ error: "Tasa requerida" })

@@ -70,3 +70,10 @@ export const dateRangeSchema = z
   .refine((r) => r.from <= r.to, { error: "La fecha inicial debe ser anterior a la final", path: ["to"] });
 
 export type DateRange = z.infer<typeof dateRangeSchema>;
+
+/** Money that can go either way (an adjustment), never zero. */
+export const signedMoneySchema = z.coerce
+  .number({ error: "Monto requerido" })
+  .refine((v) => v !== 0, { error: "El monto no puede ser cero" })
+  .refine((v) => Math.abs(v) <= 9_999_999_999_999, { error: "Monto demasiado grande" })
+  .refine((v) => Math.round(v * 100) / 100 === v, { error: "Máximo dos decimales" });
