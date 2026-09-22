@@ -256,7 +256,15 @@ export function TransactionsList({ result, type, category, hasFilters }: Transac
           if (!open) setPendingDelete(null);
         }}
         title="¿Eliminar movimiento?"
-        description={pendingDelete ? `Se eliminará «${pendingDelete.description}». Esta acción no se puede deshacer.` : undefined}
+        description={
+          pendingDelete
+            ? `Se eliminará «${pendingDelete.description}». Esta acción no se puede deshacer.${
+                pendingDelete.isCardPayment
+                  ? " Es un pago de tarjeta: eliminarlo no devuelve el saldo a la tarjeta; corrígelo desde Actualizar extracto."
+                  : ""
+              }`
+            : undefined
+        }
         confirmLabel="Eliminar"
         destructive
         onConfirm={remove}

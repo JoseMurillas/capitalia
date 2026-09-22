@@ -48,6 +48,10 @@ test("phone layout: bottom navigation, card lists and bottom-sheet dialogs", asy
   await page.screenshot({ path: screenshotPath("mobile-menu") });
   await sheet.getByRole("link", { name: "Finanzas", exact: true }).click();
   await expect(page).toHaveURL(/\/finanzas$/);
+
+  // The movements list renders as cards on phones; the table is only used from md up.
+  await page.getByRole("link", { name: "Movimientos" }).click();
+  await expect(page).toHaveURL(/\/finanzas\/movimientos$/);
   await expect(page.getByRole("table")).toBeHidden();
   await page.screenshot({ path: screenshotPath("mobile-finance"), fullPage: true });
 });

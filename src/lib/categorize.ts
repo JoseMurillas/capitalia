@@ -5,7 +5,7 @@ type Rule = { pattern: RegExp; category: TransactionCategoryValue };
 const EXPENSE_RULES: Rule[] = [
   { pattern: /arriendo|arrendamiento|hipoteca|administracion|conjunto/, category: "HOUSING" },
   {
-    pattern: /servicio|epm|enel|codensa|emcali|acueducto|gas natural|vanti|claro|movistar|tigo|etb|internet|energia|agua\b/,
+    pattern: /servicio|epm|enel|codensa|emcali|acueducto|gas natural|vanti|claro|movistar|tigo|etb|internet|energia|agua\b|cuota de manejo/,
     category: "SERVICES",
   },
   {
@@ -17,7 +17,18 @@ const EXPENSE_RULES: Rule[] = [
     pattern: /\bexito\b|carulla|jumbo|olimpica|\bd1\b|\bara\b|\bjusto\b|makro|alkosto|mercado|supermercado|restaurante|rappi|domicilio|comida|panaderia|alimentacion|almuerzo/,
     category: "FOOD",
   },
-  { pattern: /netflix|spotify|disney|hbo|cine|teatro|bar\b|licor|entretenimiento|juego|steam|playstation|xbox/, category: "ENTERTAINMENT" },
+  {
+    pattern: /netflix|spotify|disney|hbo|\bmax\b|prime video|amazon prime|youtube|icloud|google one|apple\.com|dropbox|office 365|microsoft 365|adobe|suscripcion/,
+    category: "SUBSCRIPTIONS",
+  },
+  { pattern: /seguro|poliza|sura\b|allianz|mapfre|bolivar|liberty|axa/, category: "INSURANCE" },
+  {
+    pattern: /\beps\b|medicina|farmacia|drogueria|clinica|odontolog|gimnasio|\bgym\b|smart fit|bodytech|crossfit|cuota moderadora/,
+    category: "HEALTH",
+  },
+  { pattern: /colegio|universidad|matricula|\bcurso\b|pension escolar|udemy|platzi|coursera/, category: "EDUCATION" },
+  { pattern: /credito|prestamo|cuota|financiera|davivienda credito|bancolombia credito/, category: "DEBT" },
+  { pattern: /cine|teatro|bar\b|licor|entretenimiento|juego|steam|playstation|xbox/, category: "ENTERTAINMENT" },
 ];
 
 const INCOME_RULES: Rule[] = [

@@ -49,3 +49,18 @@ export async function verifyInboxToken(provided: string): Promise<boolean> {
   }
   return false;
 }
+
+export const DEFAULT_REMINDER_DAYS_KEY = "default_reminder_days";
+export const DEFAULT_REMINDER_DAYS = 3;
+
+/** Reminder window new recurring expenses and cards start with. */
+export async function getDefaultReminderDays(): Promise<number> {
+  const raw = await getSetting(DEFAULT_REMINDER_DAYS_KEY);
+  if (raw === null) return DEFAULT_REMINDER_DAYS;
+  const value = Number(raw);
+  return Number.isInteger(value) && value >= 0 && value <= 60 ? value : DEFAULT_REMINDER_DAYS;
+}
+
+export async function setDefaultReminderDays(days: number): Promise<void> {
+  await setSetting(DEFAULT_REMINDER_DAYS_KEY, String(days));
+}

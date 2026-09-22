@@ -67,8 +67,8 @@ test.describe("bank inbox", () => {
     const again = await request.post("/api/inbox", { headers: auth, data: payload });
     expect(await again.json()).toEqual({ received: 0, skipped: 3 });
 
-    await page.goto("/finanzas");
-    await page.getByRole("link", { name: /Bandeja del banco/ }).click();
+    await page.goto("/finanzas/movimientos");
+    await page.getByRole("link", { name: /^Bandeja/ }).click();
     await expect(page).toHaveURL(/\/finanzas\/bandeja$/);
 
     // The login notice never reaches the pending list; it sits in "Descartados".
@@ -106,7 +106,7 @@ test.describe("bank inbox", () => {
     await page.goto("/finanzas/bandeja?status=DISCARDED&q=" + TAG);
     await expect(page.locator("li", { hasText: `ingreso a BBVA Net el 18/09/2026 ${TAG}` })).toBeVisible();
 
-    await page.goto("/finanzas?from=2026-09-20&to=2026-09-20");
+    await page.goto("/finanzas/movimientos?from=2026-09-20&to=2026-09-20");
     // The merchant is extracted in upper case, so the lower-case tag is not part of the description.
     await expect(page.getByRole("table").getByText("EXITO CALLE 80").first()).toBeVisible();
   });

@@ -9,12 +9,19 @@ export const EXPENSE_CATEGORIES = [
   "TRANSPORT",
   "HOUSING",
   "SERVICES",
+  "SUBSCRIPTIONS",
   "ENTERTAINMENT",
+  "INSURANCE",
+  "HEALTH",
+  "EDUCATION",
+  "DEBT",
+  "CREDIT_CARD_PAYMENT",
   "OTHER_EXPENSE",
 ] as const;
 export const TRANSACTION_CATEGORIES = [...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES] as const;
 
 export type TransactionCategoryValue = (typeof TRANSACTION_CATEGORIES)[number];
+export type ExpenseCategoryValue = (typeof EXPENSE_CATEGORIES)[number];
 
 export function categoriesForType(type: "INCOME" | "EXPENSE") {
   return type === "INCOME" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;

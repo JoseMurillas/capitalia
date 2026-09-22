@@ -101,7 +101,7 @@ test.describe("Capitalia end to end", () => {
     await expect(page.getByRole("link", { name: personName }).first()).toBeVisible();
 
     // Personal finance: register an expense.
-    await page.goto("/finanzas");
+    await page.goto("/finanzas/movimientos");
     await page.getByRole("button", { name: "Gasto" }).click();
     const txDialog = page.getByRole("dialog", { name: "Nuevo movimiento" });
     await txDialog.getByLabel("Monto").fill("45000");

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 
+import { FinanceNav } from "@/components/finance/finance-nav";
 import { InboxList } from "@/components/finance/inbox/inbox-list";
 import { PageHeader } from "@/components/shared/page-header";
 import { getEnum, getPage, getString } from "@/lib/search-params";
-import { listInboxMessages } from "@/server/queries/inbox";
+import { countPendingInbox, listInboxMessages } from "@/server/queries/inbox";
 
 export const metadata: Metadata = { title: "Bandeja de correos del banco" };
 
@@ -14,16 +15,15 @@ export default async function InboxPage({ searchParams }: PageProps<"/finanzas/b
   const status = getEnum(params, "status", STATUSES) ?? "PENDING";
   const q = getString(params, "q");
   const page = getPage(params);
-  const result = await listInboxMessages({ status, q, page });
+  const [result, pendingInbox] = await Promise.all([listInboxMessages({ status, q, page }), countPendingInbox()]);
 
   return (
     <>
       <PageHeader
         title="Bandeja del banco"
         description="Correos de tu banco recibidos automáticamente. Confirma cada uno para convertirlo en ingreso o gasto."
-        backHref="/finanzas"
-        backLabel="Finanzas"
       />
+      <FinanceNav pendingInbox={pendingInbox} />
       <InboxList result={result} status={status} query={q} />
     </>
   );

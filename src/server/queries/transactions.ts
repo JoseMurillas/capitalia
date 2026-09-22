@@ -20,6 +20,10 @@ export type TransactionDto = {
   transactionDate: IsoDate;
   notes: string | null;
   createdAt: string;
+  /** Created by "marcar pagado" on this recurring expense. */
+  recurringExpenseId: string | null;
+  /** Created by a credit-card payment; deleting it does not restore the card balance. */
+  isCardPayment: boolean;
 };
 
 export type TransactionListParams = {
@@ -37,7 +41,9 @@ export type TransactionListTotals = {
   balance: number;
 };
 
-function toDto(t: Prisma.TransactionGetPayload<object>): TransactionDto {
+const transactionInclude = { cardMovement: { select: { id: true } } } satisfies Prisma.TransactionInclude;
+
+function toDto(t: Prisma.TransactionGetPayload<{ include: typeof transactionInclude }>): TransactionDto {
   return {
     id: t.id,
     type: t.type,
@@ -47,6 +53,8 @@ function toDto(t: Prisma.TransactionGetPayload<object>): TransactionDto {
     transactionDate: toIsoDate(t.transactionDate),
     notes: t.notes,
     createdAt: t.createdAt.toISOString(),
+    recurringExpenseId: t.recurringExpenseId,
+    isCardPayment: t.cardMovement !== null,
   };
 }
 
@@ -77,6 +85,7 @@ export async function listTransactions(
     prisma.transaction.count({ where }),
     prisma.transaction.findMany({
       where,
+      include: transactionInclude,
       orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
       ...paginate(page, pageSize),
     }),

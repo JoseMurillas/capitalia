@@ -23,6 +23,31 @@ export const moneySchema = z.coerce
   .max(9_999_999_999_999, { error: "Monto demasiado grande" })
   .refine((v) => Math.round(v * 100) / 100 === v, { error: "Máximo dos decimales" });
 
+/** Money that may legitimately be zero (card balances). */
+export const nonNegativeMoneySchema = z.coerce
+  .number({ error: "Monto requerido" })
+  .min(0, { error: "El monto no puede ser negativo" })
+  .max(9_999_999_999_999, { error: "Monto demasiado grande" })
+  .refine((v) => Math.round(v * 100) / 100 === v, { error: "Máximo dos decimales" });
+
+/** Optional money: empty input, null and undefined all normalise to null. */
+export const optionalMoneySchema = z.preprocess(
+  (value) => (value === "" || value === undefined ? null : value),
+  nonNegativeMoneySchema.nullable(),
+);
+
+/** Days before a due date the app starts warning (0 = only on the day). */
+export const reminderDaysSchema = z.preprocess(
+  (value) => (value === "" || value === undefined ? undefined : value),
+  z.coerce
+    .number({ error: "Días requeridos" })
+    .int({ error: "Debe ser un número entero" })
+    .min(0, { error: "Mínimo 0 días" })
+    .max(60, { error: "Máximo 60 días" }),
+);
+
+export const reminderSettingsSchema = z.object({ days: reminderDaysSchema });
+
 export const idSchema = z.string().trim().min(1, { error: "Identificador requerido" });
 
 /**

@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { cancelLoan, createLoan, syncOverdueStatuses } from "@/server/services/loans";
 import { registerPayment } from "@/server/services/payments";
 import type { LoanInput } from "@/lib/validations/loan";
+import type { RecurringExpenseInput } from "@/lib/validations/recurring";
+import { createCreditCard, createInstallmentPlan } from "@/server/services/credit-cards";
+import { createRecurringExpense } from "@/server/services/recurring";
 
 import { upsertAdmin } from "./admin";
 
@@ -13,6 +16,8 @@ const today = todayIso();
 async function resetBusinessData() {
   await prisma.loan.deleteMany();
   await prisma.person.deleteMany();
+  await prisma.recurringExpense.deleteMany();
+  await prisma.creditCard.deleteMany();
   await prisma.transaction.deleteMany();
 }
 
@@ -220,6 +225,61 @@ async function seedTransactions() {
   console.log(`${rows.length} movimientos creados`);
 }
 
+async function seedCommitments() {
+  const visa = await createCreditCard({
+    name: "Visa Bancolombia",
+    creditLimit: 5_000_000,
+    balance: 2_000_000,
+    minimumPayment: 200_000,
+    paymentAmount: 650_000,
+    nextClosingDate: addDaysIso(today, 4),
+    nextPaymentDate: addDaysIso(today, 10),
+    reminderDays: 5,
+    notes: null,
+  });
+  const master = await createCreditCard({
+    name: "Mastercard Davivienda",
+    creditLimit: 3_000_000,
+    balance: 450_000,
+    minimumPayment: 60_000,
+    paymentAmount: null,
+    nextClosingDate: addDaysIso(today, 12),
+    nextPaymentDate: addDaysIso(today, 25),
+    reminderDays: 3,
+    notes: "Solo para compras en línea",
+  });
+  await createInstallmentPlan(visa.id, {
+    description: "Televisor",
+    totalAmount: 1_800_000,
+    installmentAmount: 165_000,
+    installments: 12,
+    paidInstallments: 4,
+    startDate: addMonthsIso(today, -4),
+    notes: null,
+  });
+  await createInstallmentPlan(master.id, {
+    description: "Tiquetes a Cartagena",
+    totalAmount: 900_000,
+    installmentAmount: 320_000,
+    installments: 3,
+    paidInstallments: 1,
+    startDate: addMonthsIso(today, -1),
+    notes: null,
+  });
+
+  const recurring: RecurringExpenseInput[] = [
+    { name: "Arriendo", category: "HOUSING", amount: 1_200_000, isVariable: false, frequency: "MONTHLY", nextDueDate: addDaysIso(today, 3), paymentMethod: "BANK_TRANSFER", reminderDays: 7, notes: null },
+    { name: "Internet", category: "SERVICES", amount: 120_000, isVariable: false, frequency: "MONTHLY", nextDueDate: addDaysIso(today, 3), paymentMethod: "BANK_TRANSFER", reminderDays: 3, notes: null },
+    { name: "Energía", category: "SERVICES", amount: 180_000, isVariable: true, frequency: "MONTHLY", nextDueDate: addDaysIso(today, -2), paymentMethod: "CASH", reminderDays: 3, notes: "Varía según el consumo" },
+    { name: "Netflix", category: "SUBSCRIPTIONS", amount: 25_000, isVariable: false, frequency: "MONTHLY", nextDueDate: addDaysIso(today, 6), paymentMethod: "CREDIT_CARD", creditCardId: visa.id, reminderDays: 1, notes: null },
+    { name: "Seguro del carro", category: "INSURANCE", amount: 1_400_000, isVariable: false, frequency: "ANNUAL", nextDueDate: addDaysIso(today, 15), paymentMethod: "BANK_TRANSFER", reminderDays: 7, notes: null },
+    { name: "Gimnasio", category: "HEALTH", amount: 90_000, isVariable: false, frequency: "MONTHLY", nextDueDate: addDaysIso(today, 20), paymentMethod: "CASH", reminderDays: 3, notes: null },
+    { name: "Cuota del carro", category: "DEBT", amount: 850_000, isVariable: false, frequency: "MONTHLY", nextDueDate: addDaysIso(today, 9), paymentMethod: "BANK_TRANSFER", reminderDays: 5, notes: null },
+  ];
+  for (const input of recurring) await createRecurringExpense(input);
+  console.log(`2 tarjetas, 2 compras diferidas y ${recurring.length} gastos recurrentes creados`);
+}
+
 async function main() {
   await upsertAdmin();
   // Production: create/refresh the admin only, never touch business data.
@@ -231,6 +291,7 @@ async function main() {
   const personIds = await seedPeople();
   await seedLoans(personIds);
   await seedTransactions();
+  await seedCommitments();
 }
 
 main()

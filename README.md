@@ -83,6 +83,23 @@ Para las pruebas end-to-end instala el navegador una vez con `npx playwright ins
 Levantan `next dev` en el puerto 3100 (o reutilizan uno abierto) y crean registros de prueba en
 la base de datos configurada; `npm run db:seed` la deja limpia de nuevo.
 
+## Finanzas personales
+
+- **Resumen** (`/finanzas`): alertas de pago próximas a vencer, plan de gastos del mes y
+  próximos compromisos (tarjetas y recurrentes).
+- **Movimientos** (`/finanzas/movimientos`): ingresos y gastos registrados, con filtros y
+  búsqueda.
+- **Recurrentes** (`/finanzas/recurrentes`): gastos fijos mensuales; "Marcar pagado" registra
+  el gasto en Finanzas (o lo carga a la tarjeta si el método de pago es tarjeta de crédito) y
+  programa automáticamente el siguiente vencimiento.
+- **Tarjetas** (`/finanzas/tarjetas`): cupo, saldo, fecha de corte y de pago, extracto, compras
+  diferidas (cuotas) y registro de pagos. El cupo disponible de una tarjeta **nunca** cuenta
+  como dinero disponible en el flujo de caja: es crédito, no efectivo.
+- **Bandeja del banco** (`/finanzas/bandeja`): movimientos propuestos por correo, pendientes de
+  confirmar o descartar.
+- Los días de aviso por defecto para recordatorios (tarjetas y recurrentes) se configuran en
+  **Configuración**.
+
 ## Producción
 
 ```bash

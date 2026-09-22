@@ -64,6 +64,35 @@ enum TransactionCategory {
   SERVICES
   ENTERTAINMENT
   OTHER_EXPENSE
+  SUBSCRIPTIONS
+  INSURANCE
+  HEALTH
+  EDUCATION
+  DEBT
+  CREDIT_CARD_PAYMENT
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+  CUSTOM
+}
+
+enum RecurringPaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CREDIT_CARD
+  OTHER
+}
+
+enum CreditCardMovementKind {
+  CHARGE
+  PAYMENT
+  ADJUSTMENT
 }
 
 // ---------------------------------------------------------------------------
@@ -202,10 +231,16 @@ model Transaction {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
+  /// Set when the movement was created by "marcar pagado" on a recurring expense.
+  recurringExpenseId String?
+  recurringExpense   RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
+
   inboxMessage InboxMessage?
+  cardMovement CreditCardMovement?
 
   @@index([transactionDate])
   @@index([type, category])
+  @@index([recurringExpenseId])
   @@map("transactions")
 }
 
@@ -262,4 +297,110 @@ model AppSetting {
   updatedAt DateTime @updatedAt
 
   @@map("app_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Financial commitments: recurring expenses and credit cards
+// ---------------------------------------------------------------------------
+
+/// A payment the user makes periodically (rent, subscriptions, insurance, debts…).
+/// Only the *next* due date is stored; "marcar pagado" records the expense and advances it.
+model RecurringExpense {
+  id                 String                 @id @default(cuid(2))
+  name               String
+  /// Expense categories only (validated in zod).
+  category           TransactionCategory
+  amount             Decimal                @db.Decimal(15, 2)
+  /// True when the real amount changes each period (utilities); `amount` is then an estimate.
+  isVariable         Boolean                @default(false)
+  frequency          RecurringFrequency
+  /// Days between payments; only used when frequency is CUSTOM.
+  customIntervalDays Int?
+  nextDueDate        DateTime               @db.Date
+  paymentMethod      RecurringPaymentMethod
+  /// Required when paymentMethod is CREDIT_CARD: paying adds to that card's balance instead of cash.
+  creditCardId       String?
+  creditCard         CreditCard?            @relation(fields: [creditCardId], references: [id], onDelete: Restrict)
+  /// Alert window: days before nextDueDate the app starts warning.
+  reminderDays       Int                    @default(3)
+  lastPaidDate       DateTime?              @db.Date
+  active             Boolean                @default(true)
+  notes              String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  transactions  Transaction[]
+  cardMovements CreditCardMovement[]
+
+  @@index([active, nextDueDate])
+  @@index([creditCardId])
+  @@map("recurring_expenses")
+}
+
+/// A credit card tracked as an obligation. Its limit is never money the user has.
+model CreditCard {
+  id              String    @id @default(cuid(2))
+  name            String
+  creditLimit     Decimal   @db.Decimal(15, 2)
+  /// Outstanding balance (cupo utilizado). Updated by charges, payments and statement adjustments.
+  balance         Decimal   @default(0) @db.Decimal(15, 2)
+  minimumPayment  Decimal?  @db.Decimal(15, 2)
+  /// What the user plans to pay this cycle; null means "the minimum".
+  paymentAmount   Decimal?  @db.Decimal(15, 2)
+  nextClosingDate DateTime  @db.Date
+  nextPaymentDate DateTime  @db.Date
+  reminderDays    Int       @default(3)
+  active          Boolean   @default(true)
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  recurringExpenses RecurringExpense[]
+  installmentPlans  CreditCardInstallmentPlan[]
+  movements         CreditCardMovement[]
+
+  @@index([active, nextPaymentDate])
+  @@map("credit_cards")
+}
+
+/// A purchase deferred into N installments (compra diferida). Informative: it explains
+/// the monthly payment but does not change the balance by itself.
+model CreditCardInstallmentPlan {
+  id                String     @id @default(cuid(2))
+  creditCardId      String
+  creditCard        CreditCard @relation(fields: [creditCardId], references: [id], onDelete: Cascade)
+  description       String
+  totalAmount       Decimal    @db.Decimal(15, 2)
+  /// Typed by the user: banks add interest, so it is not totalAmount / installments.
+  installmentAmount Decimal    @db.Decimal(15, 2)
+  installments      Int
+  paidInstallments  Int        @default(0)
+  startDate         DateTime   @db.Date
+  notes             String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([creditCardId])
+  @@map("credit_card_installment_plans")
+}
+
+/// History of a card's balance: charges (+), payments (−) and statement adjustments (±).
+model CreditCardMovement {
+  id                 String                 @id @default(cuid(2))
+  creditCardId       String
+  creditCard         CreditCard             @relation(fields: [creditCardId], references: [id], onDelete: Cascade)
+  kind               CreditCardMovementKind
+  /// Positive for CHARGE and PAYMENT; ADJUSTMENT may be negative.
+  amount             Decimal                @db.Decimal(15, 2)
+  movementDate       DateTime               @db.Date
+  description        String
+  recurringExpenseId String?
+  recurringExpense   RecurringExpense?      @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
+  /// The expense created in Finanzas when the movement is a PAYMENT.
+  transactionId      String?                @unique
+  transaction        Transaction?           @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  createdAt          DateTime               @default(now())
+
+  @@index([creditCardId, movementDate])
+  @@map("credit_card_movements")
 }

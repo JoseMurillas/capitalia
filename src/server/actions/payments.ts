@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { paymentSchema } from "@/lib/validations/payment";
 import { parseInput, runAction } from "@/server/action-utils";
 import { requireSession } from "@/server/auth";
+import { revalidateFinance } from "@/server/revalidate";
 import { registerPayment, type RegisterPaymentResult } from "@/server/services/payments";
 import { prisma } from "@/lib/prisma";
 import { type ActionResult, ok } from "@/types";
@@ -26,9 +27,7 @@ export async function registerPaymentAction(input: unknown): Promise<ActionResul
     revalidatePath(`/prestamos/${parsed.data.loanId}`);
     revalidatePath("/personas");
     if (loan) revalidatePath(`/personas/${loan.personId}`);
-    revalidatePath("/dashboard");
-    revalidatePath("/reportes");
-    revalidatePath("/finanzas");
+    revalidateFinance();
 
     return ok(result);
   });

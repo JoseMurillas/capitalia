@@ -4,16 +4,22 @@ import { headers } from "next/headers";
 import { InboxSetupCard } from "@/components/settings/inbox-setup-card";
 import { PasswordForm } from "@/components/settings/password-form";
 import { ProfileForm } from "@/components/settings/profile-form";
+import { ReminderSettingsCard } from "@/components/settings/reminder-settings-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { INTEREST_TYPE_LABELS } from "@/lib/labels";
 import { requireSession } from "@/server/auth";
-import { hasInboxToken } from "@/server/services/settings";
+import { getDefaultReminderDays, hasInboxToken } from "@/server/services/settings";
 
 export const metadata: Metadata = { title: "Configuración" };
 
 export default async function SettingsPage() {
-  const [user, headerStore, inboxConfigured] = await Promise.all([requireSession(), headers(), hasInboxToken()]);
+  const [user, headerStore, inboxConfigured, defaultReminderDays] = await Promise.all([
+    requireSession(),
+    headers(),
+    hasInboxToken(),
+    getDefaultReminderDays(),
+  ]);
   const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host") ?? "localhost:3000";
   const protocol = headerStore.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const endpointUrl = `${protocol}://${host}/api/inbox`;
@@ -24,6 +30,7 @@ export default async function SettingsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <ProfileForm user={{ name: user.name, email: user.email }} />
         <PasswordForm />
+        <ReminderSettingsCard defaultDays={defaultReminderDays} />
         <InboxSetupCard endpointUrl={endpointUrl} hasToken={inboxConfigured} />
         <Card className="lg:col-span-2">
           <CardHeader>

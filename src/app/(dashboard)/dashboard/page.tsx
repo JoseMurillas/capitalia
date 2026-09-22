@@ -16,18 +16,20 @@ import { InterestChart } from "@/components/dashboard/interest-chart";
 import { LoanStatusChart } from "@/components/dashboard/loan-status-chart";
 import { OverdueLoans } from "@/components/dashboard/overdue-loans";
 import { UpcomingInstallments } from "@/components/dashboard/upcoming-installments";
+import { UpcomingCommitments } from "@/components/finance/overview/upcoming-commitments";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateLong, formatMonth, monthKey } from "@/lib/dates";
+import { getUpcomingCommitments } from "@/server/queries/commitments";
 import { getDashboardData } from "@/server/queries/dashboard";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
-  const data = await getDashboardData();
+  const [data, commitments] = await Promise.all([getDashboardData(), getUpcomingCommitments()]);
   const { metrics } = data;
   const month = formatMonth(monthKey(data.today));
 
@@ -124,7 +126,7 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Intereses cobrados por mes</CardTitle>
@@ -134,6 +136,7 @@ export default async function DashboardPage() {
             <InterestChart data={data.monthlyInterest} />
           </CardContent>
         </Card>
+        <UpcomingCommitments upcoming={commitments} />
         <UpcomingInstallments installments={data.upcomingInstallments} />
         <OverdueLoans loans={data.overdueLoans} today={data.today} />
       </div>

@@ -6,6 +6,7 @@ import { idSchema } from "@/lib/validations/common";
 import { confirmInboxSchema } from "@/lib/validations/inbox";
 import { parseInput, runAction } from "@/server/action-utils";
 import { requireSession } from "@/server/auth";
+import { revalidateFinance } from "@/server/revalidate";
 import {
   confirmInboxMessage,
   discardInboxMessage,
@@ -16,9 +17,7 @@ import { type ActionResult, ok } from "@/types";
 
 function revalidateInbox() {
   revalidatePath("/finanzas/bandeja");
-  revalidatePath("/finanzas");
-  revalidatePath("/dashboard");
-  revalidatePath("/reportes");
+  revalidateFinance();
 }
 
 export async function confirmInboxMessageAction(input: unknown): Promise<ActionResult<{ transactionId: string }>> {

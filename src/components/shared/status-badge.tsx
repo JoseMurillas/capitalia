@@ -1,6 +1,8 @@
 import type { InstallmentStatus, LoanStatus, TransactionType } from "@/generated/prisma/enums";
 import { Badge } from "@/components/ui/badge";
+import type { CommitmentStatus } from "@/lib/calculations/commitments";
 import {
+  COMMITMENT_STATUS_LABELS,
   INSTALLMENT_STATUS_LABELS,
   LOAN_STATUS_LABELS,
   TRANSACTION_TYPE_LABELS,
@@ -81,6 +83,21 @@ export function ActiveBadge({ active, className }: { active: boolean; className?
   return (
     <StatusBadge tone={active ? "success" : "neutral"} className={className}>
       {active ? "Activa" : "Inactiva"}
+    </StatusBadge>
+  );
+}
+
+const commitmentTones: Record<CommitmentStatus, BadgeTone> = {
+  OVERDUE: "danger",
+  DUE_TODAY: "danger",
+  ALERT: "warning",
+  UPCOMING: "neutral",
+};
+
+export function CommitmentStatusBadge({ status, className }: { status: CommitmentStatus; className?: string }) {
+  return (
+    <StatusBadge tone={commitmentTones[status]} className={className}>
+      {COMMITMENT_STATUS_LABELS[status]}
     </StatusBadge>
   );
 }

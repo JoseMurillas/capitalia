@@ -19,9 +19,21 @@ function toData(input: TransactionInput) {
   };
 }
 
+type CreateTransactionOptions = {
+  /** Links the movement to the recurring expense that generated it. */
+  recurringExpenseId?: string | null;
+};
+
 /** `db` lets callers run the insert inside their own transaction. */
-export async function createTransaction(input: TransactionInput, db: Db = prisma) {
-  return db.transaction.create({ data: toData(input), select: { id: true } });
+export async function createTransaction(
+  input: TransactionInput,
+  db: Db = prisma,
+  options: CreateTransactionOptions = {},
+) {
+  return db.transaction.create({
+    data: { ...toData(input), recurringExpenseId: options.recurringExpenseId ?? null },
+    select: { id: true },
+  });
 }
 
 export async function updateTransaction(id: string, input: TransactionInput) {

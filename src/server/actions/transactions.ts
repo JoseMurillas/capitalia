@@ -1,23 +1,16 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-
 import { idSchema } from "@/lib/validations/common";
 import { transactionSchema } from "@/lib/validations/transaction";
 import { parseInput, runAction } from "@/server/action-utils";
 import { requireSession } from "@/server/auth";
+import { revalidateFinance } from "@/server/revalidate";
 import {
   createTransaction,
   deleteTransaction,
   updateTransaction,
 } from "@/server/services/transactions";
 import { type ActionResult, ok } from "@/types";
-
-function revalidateFinance() {
-  revalidatePath("/finanzas");
-  revalidatePath("/dashboard");
-  revalidatePath("/reportes");
-}
 
 export async function createTransactionAction(input: unknown): Promise<ActionResult<{ id: string }>> {
   return runAction(async () => {
