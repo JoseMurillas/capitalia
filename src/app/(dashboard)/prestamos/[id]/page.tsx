@@ -5,16 +5,18 @@ import { notFound } from "next/navigation";
 
 import { InstallmentsTable } from "@/components/loans/installments-table";
 import { LoanActions } from "@/components/loans/loan-actions";
+import { LoanCashBoxButton } from "@/components/loans/loan-cash-box-dialog";
 import { PaymentsTable } from "@/components/payments/payments-table";
 import { RegisterPaymentButton } from "@/components/payments/register-payment-button";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { InstallmentStatusBadge, LoanStatusBadge } from "@/components/shared/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate, formatDateLong } from "@/lib/dates";
 import { formatPercent } from "@/lib/format";
 import { FREQUENCY_LABELS, INTEREST_TYPE_LABELS } from "@/lib/labels";
+import { listCashBoxOptions } from "@/server/queries/cash-boxes";
 import { getLoanDetail } from "@/server/queries/loans";
 
 export async function generateMetadata({ params }: PageProps<"/prestamos/[id]">): Promise<Metadata> {
@@ -25,7 +27,7 @@ export async function generateMetadata({ params }: PageProps<"/prestamos/[id]">)
 
 export default async function LoanDetailPage({ params }: PageProps<"/prestamos/[id]">) {
   const { id } = await params;
-  const loan = await getLoanDetail(id);
+  const [loan, cashBoxes] = await Promise.all([getLoanDetail(id), listCashBoxOptions()]);
   if (!loan) notFound();
 
   const isOpen = loan.status === "ACTIVE" || loan.status === "OVERDUE";
@@ -98,6 +100,24 @@ export default async function LoanDetailPage({ params }: PageProps<"/prestamos/[
           }
         />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Caja de origen</CardTitle>
+          <CardDescription>
+            {loan.cashBoxName ? (
+              <Link href={`/prestamos/cajas/${loan.cashBoxId}`} className="hover:underline">
+                {loan.cashBoxName}
+              </Link>
+            ) : (
+              "Este préstamo no tiene caja asignada."
+            )}
+          </CardDescription>
+          <CardAction>
+            <LoanCashBoxButton loan={loan} options={cashBoxes} />
+          </CardAction>
+        </CardHeader>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card>

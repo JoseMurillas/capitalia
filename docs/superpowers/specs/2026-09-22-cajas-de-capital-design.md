@@ -278,7 +278,9 @@ resultante sea exactamente lo ya devuelto. El usuario ajusta después con un dep
 más capital ocioso. Volver a ejecutarlo no duplica nada: se detiene si ya existe alguna caja.
 
 `db:seed` crea dos cajas de ejemplo («José Murillas» con $3.000.000 y «Préstamos» con
-$2.500.000), reparte entre ellas los préstamos de ejemplo y registra sus desembolsos y pagos.
+$5.500.000 — con menos, el propio servicio rechaza por saldo insuficiente alguno de los
+préstamos de ejemplo), reparte entre ellas los préstamos de ejemplo y registra sus desembolsos
+y pagos.
 `db:clear` borra cajas y movimientos junto al resto de datos de negocio (los préstamos primero,
 por la FK `Restrict`).
 

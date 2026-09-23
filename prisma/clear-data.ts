@@ -9,20 +9,23 @@ import { prisma } from "@/lib/prisma";
  */
 async function main() {
   if (process.env.CONFIRM_CLEAR !== "yes") {
-    console.error("Esto borra TODAS las personas, préstamos, pagos, movimientos, gastos recurrentes y tarjetas.");
+    console.error(
+      "Esto borra TODAS las personas, préstamos, pagos, movimientos, gastos recurrentes, tarjetas y cajas.",
+    );
     console.error("Para confirmar, ejecuta con la variable CONFIRM_CLEAR=yes.");
     process.exit(1);
   }
 
-  const [loans, people, recurring, cards, transactions] = await prisma.$transaction([
+  const [loans, people, recurring, cards, boxes, transactions] = await prisma.$transaction([
     prisma.loan.deleteMany(),
     prisma.person.deleteMany(),
     prisma.recurringExpense.deleteMany(),
     prisma.creditCard.deleteMany(),
+    prisma.cashBox.deleteMany(),
     prisma.transaction.deleteMany(),
   ]);
   console.log(
-    `Eliminados: ${loans.count} préstamos (con sus cuotas y pagos), ${people.count} personas, ${recurring.count} gastos recurrentes, ${cards.count} tarjetas (con sus compras y movimientos), ${transactions.count} movimientos.`,
+    `Eliminados: ${loans.count} préstamos (con sus cuotas y pagos), ${people.count} personas, ${recurring.count} gastos recurrentes, ${cards.count} tarjetas (con sus compras y movimientos), ${boxes.count} cajas (con sus movimientos), ${transactions.count} movimientos.`,
   );
 }
 

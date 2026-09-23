@@ -190,7 +190,7 @@ export function CashBoxMovementDialog({ open, onOpenChange, mode, box, otherBoxe
                   name="counterparty"
                   render={({ field }) => (
                     <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger id="movement-counterparty" className="w-full">
+                      <SelectTrigger id="movement-counterparty" className="w-full" aria-invalid={Boolean(errors.counterparty)}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -236,7 +236,12 @@ export function CashBoxMovementDialog({ open, onOpenChange, mode, box, otherBoxe
 
             {mode === "ADJUSTMENT" ? null : (
               <FormItem label="Concepto" htmlFor="movement-description" error={errors.description}>
-                <Input id="movement-description" placeholder="Opcional" {...form.register("description")} />
+                <Input
+                  id="movement-description"
+                  placeholder="Opcional"
+                  aria-invalid={Boolean(errors.description)}
+                  {...form.register("description")}
+                />
               </FormItem>
             )}
 

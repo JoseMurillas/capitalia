@@ -1,6 +1,7 @@
 import "dotenv/config";
 
-import { toDbString } from "@/lib/calculations";
+import type { Prisma } from "@/generated/prisma/client";
+import { signedAmount, sumMoney, toDbString } from "@/lib/calculations";
 import { todayIso } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 
@@ -35,55 +36,56 @@ async function main() {
   });
 
   const funded = loans.filter((loan) => loan.status !== "CANCELLED");
-  const openingBalance = funded.reduce((total, loan) => total + Number(loan.principalAmount), 0);
+  const openingBalance = sumMoney(funded.map((loan) => loan.principalAmount));
 
-  await prisma.$transaction(async (tx) => {
-    const box = await tx.cashBox.create({
-      data: { name: "General", description: "Caja creada al migrar los préstamos existentes." },
-      select: { id: true },
-    });
+  await prisma.$transaction(
+    async (tx) => {
+      const box = await tx.cashBox.create({
+        data: { name: "General", description: "Caja creada al migrar los préstamos existentes." },
+        select: { id: true },
+      });
 
-    await tx.loan.updateMany({ where: { cashBoxId: null }, data: { cashBoxId: box.id } });
+      await tx.loan.updateMany({ where: { cashBoxId: null }, data: { cashBoxId: box.id } });
 
-    if (openingBalance > 0) {
-      await tx.cashBoxMovement.create({
-        data: {
+      const rows: Prisma.CashBoxMovementCreateManyInput[] = [];
+
+      if (openingBalance.gt(0)) {
+        rows.push({
           cashBoxId: box.id,
           kind: "OPENING",
-          amount: toDbString(openingBalance),
+          amount: toDbString(signedAmount("OPENING", openingBalance)),
           movementDate: funded[0]?.startDate ?? new Date(`${todayIso()}T00:00:00.000Z`),
           description: "Saldo inicial reconstruido",
           notes: "Capital que respaldaba los préstamos existentes al migrar.",
-        },
-      });
-    }
+        });
+      }
 
-    for (const loan of funded) {
-      await tx.cashBoxMovement.create({
-        data: {
+      for (const loan of funded) {
+        rows.push({
           cashBoxId: box.id,
           kind: "LOAN_DISBURSEMENT",
-          amount: toDbString(-Number(loan.principalAmount)),
+          amount: toDbString(signedAmount("LOAN_DISBURSEMENT", loan.principalAmount)),
           movementDate: loan.startDate,
           description: `Préstamo a ${loan.person.name}`,
           loanId: loan.id,
-        },
-      });
-      for (const payment of loan.payments) {
-        await tx.cashBoxMovement.create({
-          data: {
+        });
+        for (const payment of loan.payments) {
+          rows.push({
             cashBoxId: box.id,
             kind: "LOAN_PAYMENT",
-            amount: toDbString(payment.amount),
+            amount: toDbString(signedAmount("LOAN_PAYMENT", payment.amount)),
             movementDate: payment.paymentDate,
             description: `Pago de ${loan.person.name}`,
             loanId: loan.id,
             paymentId: payment.id,
-          },
-        });
+          });
+        }
       }
-    }
-  });
+
+      if (rows.length > 0) await tx.cashBoxMovement.createMany({ data: rows });
+    },
+    { timeout: 120_000 },
+  );
 
   const payments = funded.reduce((count, loan) => count + loan.payments.length, 0);
   console.log(

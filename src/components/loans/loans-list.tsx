@@ -6,8 +6,10 @@ import Link from "next/link";
 import { TablePagination } from "@/components/shared/pagination";
 import { SearchInput } from "@/components/shared/search-input";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUrlParams } from "@/hooks/use-url-params";
+import type { CashBoxOption } from "@/server/queries/cash-boxes";
 import type { LoanSummaryDto } from "@/server/queries/loan-dto";
 import type { LoanListCounts, LoanStatusFilter } from "@/server/queries/loans";
 import type { PaginatedResult } from "@/types";
@@ -18,6 +20,8 @@ type LoansListProps = {
   result: PaginatedResult<LoanSummaryDto> & { counts: LoanListCounts };
   status: LoanStatusFilter;
   query?: string;
+  cashBoxes: CashBoxOption[];
+  cashBoxId?: string;
 };
 
 const TABS: { value: LoanStatusFilter; label: string }[] = [
@@ -28,7 +32,7 @@ const TABS: { value: LoanStatusFilter; label: string }[] = [
   { value: "CANCELLED", label: "Cancelados" },
 ];
 
-export function LoansList({ result, status, query }: LoansListProps) {
+export function LoansList({ result, status, query, cashBoxes, cashBoxId }: LoansListProps) {
   const { setParams } = useUrlParams();
 
   return (
@@ -51,6 +55,22 @@ export function LoansList({ result, status, query }: LoansListProps) {
         </Tabs>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <SearchInput placeholder="Buscar por persona o documento" />
+          <Select
+            value={cashBoxId ?? "all"}
+            onValueChange={(value) => setParams({ cashBox: value === "all" ? null : value }, { resetPage: true })}
+          >
+            <SelectTrigger className="w-full sm:w-52" aria-label="Filtrar por caja">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las cajas</SelectItem>
+              {cashBoxes.map((box) => (
+                <SelectItem key={box.id} value={box.id}>
+                  {box.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button asChild>
             <Link href="/prestamos/nuevo">
               <Plus aria-hidden="true" />

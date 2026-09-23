@@ -65,7 +65,7 @@ export default async function FinanceOverviewPage() {
           value={<MoneyDisplay value={overview.cashAvailable} tone={overview.cashAvailable < 0 ? "negative" : "neutral"} />}
           icon={PiggyBank}
           tone="positive"
-          hint="Caja: ingresos − gastos − prestado + cobrado"
+          hint="Efectivo personal, sin el capital de las cajas"
         />
         <StatCard
           title="Comprometido al mes"

@@ -50,7 +50,7 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/fin
           value={<MoneyDisplay value={summary.available} tone={summary.available < 0 ? "negative" : "neutral"} />}
           icon={PiggyBank}
           tone="positive"
-          hint="Ingresos − gastos − capital prestado + pagos recibidos"
+          hint="Efectivo personal: ingresos − gastos − aportes a cajas"
         />
       </div>
 

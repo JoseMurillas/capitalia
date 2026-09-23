@@ -21,6 +21,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate, todayIso } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 import { handleActionFailure } from "@/lib/forms";
 import { FREQUENCY_LABELS, INTEREST_TYPE_LABELS } from "@/lib/labels";
 import {
@@ -30,12 +31,14 @@ import {
   loanSchema,
 } from "@/lib/validations/loan";
 import { createLoanAction, previewScheduleAction, type SchedulePreview as SchedulePreviewData } from "@/server/actions/loans";
+import type { CashBoxOption } from "@/server/queries/cash-boxes";
 import type { PersonOption } from "@/server/queries/people";
 
 import { SchedulePreview } from "./schedule-preview";
 
 type LoanFormValues = {
   personId: string;
+  cashBoxId: string;
   principalAmount: number | "";
   monthlyInterestRate: number | "";
   interestType: (typeof INTEREST_TYPES)[number];
@@ -49,12 +52,13 @@ type LoanFormValues = {
 
 type LoanFormProps = {
   people: PersonOption[];
+  cashBoxes: CashBoxOption[];
   defaultPersonId?: string;
 };
 
 const PREVIEW_DEBOUNCE_MS = 350;
 
-export function LoanForm({ people, defaultPersonId }: LoanFormProps) {
+export function LoanForm({ people, cashBoxes, defaultPersonId }: LoanFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [previewState, setPreviewState] = useState<{
@@ -67,6 +71,7 @@ export function LoanForm({ people, defaultPersonId }: LoanFormProps) {
     resolver: zodResolver(loanSchema) as Resolver<LoanFormValues, unknown, LoanInput>,
     defaultValues: {
       personId: defaultPersonId && people.some((p) => p.id === defaultPersonId) ? defaultPersonId : "",
+      cashBoxId: cashBoxes.length === 1 ? cashBoxes[0].id : "",
       principalAmount: "",
       monthlyInterestRate: "",
       interestType: "SIMPLE",
@@ -103,6 +108,7 @@ export function LoanForm({ people, defaultPersonId }: LoanFormProps) {
   const previewInput = useMemo(
     () => ({
       personId: "preview",
+      cashBoxId: "preview",
       principalAmount,
       monthlyInterestRate,
       interestType,
@@ -178,6 +184,32 @@ export function LoanForm({ people, defaultPersonId }: LoanFormProps) {
                           <SelectItem key={person.id} value={person.id}>
                             {person.name}
                             {person.document ? ` · ${person.document}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </FormItem>
+
+              <FormItem
+                label="Caja"
+                htmlFor="loan-cash-box"
+                error={errors.cashBoxId}
+                description="De dónde sale el dinero. El capital se descuenta de esta caja."
+              >
+                <Controller
+                  control={form.control}
+                  name="cashBoxId"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="loan-cash-box" className="w-full" aria-invalid={Boolean(errors.cashBoxId)}>
+                        <SelectValue placeholder="Selecciona la caja" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cashBoxes.map((box) => (
+                          <SelectItem key={box.id} value={box.id}>
+                            {box.name} — {formatMoney(box.available)} disponibles
                           </SelectItem>
                         ))}
                       </SelectContent>

@@ -71,6 +71,19 @@ export function LoansTable({
       cell: (loan) => <MoneyDisplay value={loan.principalAmount} />,
     },
     {
+      key: "cashBox",
+      header: "Caja",
+      className: "hidden lg:table-cell",
+      cell: (loan) =>
+        loan.cashBoxId ? (
+          <Link href={`/prestamos/cajas/${loan.cashBoxId}`} className="hover:underline">
+            {loan.cashBoxName}
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">Sin caja</span>
+        ),
+    },
+    {
       key: "rate",
       header: "Interés",
       className: "text-right hidden sm:table-cell",

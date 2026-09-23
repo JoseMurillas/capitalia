@@ -58,8 +58,9 @@ Ambos leen `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD`. `db:se
 **reemplaza** todos los datos de negocio por los de ejemplo cada vez que se ejecuta.
 
 Otros comandos: `npm run db:studio` (Prisma Studio), `npm run db:deploy` (aplica migraciones
-sin generar nuevas, para producción), `npm run db:clear` (borra personas, préstamos, pagos y
-movimientos conservando usuarios; exige `CONFIRM_CLEAR=yes`), `npm run db:down`.
+sin generar nuevas, para producción), `npm run db:clear` (borra personas, préstamos, pagos,
+cajas de capital y sus movimientos conservando usuarios; exige `CONFIRM_CLEAR=yes`),
+`npm run db:down`.
 
 ## Desarrollo
 
@@ -99,6 +100,16 @@ la base de datos configurada; `npm run db:seed` la deja limpia de nuevo.
   confirmar o descartar.
 - Los días de aviso por defecto para recordatorios (tarjetas y recurrentes) se configuran en
   **Configuración**.
+
+## Cajas de capital
+
+Las **cajas de capital** (`/prestamos/cajas`) son los fondos desde los que se prestan: cada
+préstamo sale de una caja elegida al crearlo y descuenta su disponible, y cada pago recibido
+vuelve completo (capital + interés) a esa misma caja. Una caja puede recibir depósitos y
+retiros, trasladarse capital entre cajas y un préstamo puede reasignarse a otra caja distinta.
+Para bases con préstamos ya existentes (de antes de este módulo), `npm run db:backfill-cash-boxes`
+los migra a una caja **General**, reconstruyendo su historia de desembolsos y pagos; es
+idempotente y no hace nada si ya existe alguna caja.
 
 ## Producción
 

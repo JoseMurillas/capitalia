@@ -14,6 +14,7 @@ import {
 import { idSchema } from "@/lib/validations/common";
 import { parseInput, runAction } from "@/server/action-utils";
 import { requireSession } from "@/server/auth";
+import { revalidateFinance } from "@/server/revalidate";
 import {
   adjustCashBox,
   createCashBox,
@@ -27,10 +28,8 @@ import {
 import { type ActionResult, fail, ok } from "@/types";
 
 function revalidateCashBoxes(id?: string) {
-  revalidatePath("/prestamos/cajas");
+  revalidateFinance();
   revalidatePath("/prestamos");
-  revalidatePath("/dashboard");
-  revalidatePath("/finanzas");
   if (id) revalidatePath(`/prestamos/cajas/${id}`);
 }
 

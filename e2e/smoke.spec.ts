@@ -39,6 +39,8 @@ test.describe("Capitalia end to end", () => {
     await page.goto("/prestamos/nuevo");
     await page.getByLabel("Persona").click();
     await page.getByRole("option", { name: new RegExp(personName) }).click();
+    await page.getByLabel("Caja").click();
+    await page.getByRole("option", { name: /José Murillas/ }).click();
     await page.getByLabel("Monto prestado").fill("1000000");
     await page.getByLabel("Interés mensual (%)").fill("12");
     await page.getByLabel("Número de cuotas").fill("3");

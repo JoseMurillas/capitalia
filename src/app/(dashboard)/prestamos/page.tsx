@@ -6,6 +6,7 @@ import { LoansList } from "@/components/loans/loans-list";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { getEnum, getPage, getString } from "@/lib/search-params";
+import { listCashBoxOptions } from "@/server/queries/cash-boxes";
 import { listLoans } from "@/server/queries/loans";
 
 export const metadata: Metadata = { title: "Préstamos" };
@@ -17,8 +18,11 @@ export default async function LoansPage({ searchParams }: PageProps<"/prestamos"
   const status = getEnum(params, "status", STATUS_FILTERS) ?? "ALL";
   const q = getString(params, "q");
   const page = getPage(params);
-
-  const result = await listLoans({ status, q, page });
+  const cashBoxId = getString(params, "cashBox");
+  const [result, cashBoxes] = await Promise.all([
+    listLoans({ status, q, cashBoxId, page }),
+    listCashBoxOptions(),
+  ]);
 
   return (
     <>
@@ -34,7 +38,7 @@ export default async function LoansPage({ searchParams }: PageProps<"/prestamos"
           </Button>
         }
       />
-      <LoansList result={result} status={status} query={q} />
+      <LoansList result={result} status={status} query={q} cashBoxes={cashBoxes} cashBoxId={cashBoxId} />
     </>
   );
 }

@@ -6,6 +6,7 @@ import { cancelLoan, createLoan, syncOverdueStatuses } from "@/server/services/l
 import { registerPayment } from "@/server/services/payments";
 import type { LoanInput } from "@/lib/validations/loan";
 import type { RecurringExpenseInput } from "@/lib/validations/recurring";
+import { createCashBox } from "@/server/services/cash-boxes";
 import { createCreditCard, createInstallmentPlan } from "@/server/services/credit-cards";
 import { createRecurringExpense } from "@/server/services/recurring";
 
@@ -18,6 +19,7 @@ async function resetBusinessData() {
   await prisma.person.deleteMany();
   await prisma.recurringExpense.deleteMany();
   await prisma.creditCard.deleteMany();
+  await prisma.cashBox.deleteMany();
   await prisma.transaction.deleteMany();
 }
 
@@ -48,12 +50,30 @@ function loan(input: LoanInput): LoanInput {
   return input;
 }
 
-async function seedLoans(personIds: Record<string, string>) {
+async function seedCashBoxes() {
+  const [personal, lending] = await Promise.all([
+    createCashBox({
+      name: "José Murillas",
+      description: "Capital propio disponible para prestar.",
+      openingBalance: 3_000_000,
+    }),
+    createCashBox({
+      name: "Préstamos",
+      description: "Fondo dedicado a los préstamos del negocio.",
+      openingBalance: 5_500_000,
+    }),
+  ]);
+  console.log("2 cajas creadas");
+  return { personalId: personal.id, lendingId: lending.id };
+}
+
+async function seedLoans(personIds: Record<string, string>, cashBoxes: { personalId: string; lendingId: string }) {
   const loans: SeedLoan[] = [
     {
       // Fully paid on time.
       input: loan({
         personId: personIds["Juan Pérez"],
+        cashBoxId: cashBoxes.personalId,
         principalAmount: 1_000_000,
         monthlyInterestRate: 12,
         interestType: "SIMPLE",
@@ -72,6 +92,7 @@ async function seedLoans(personIds: Record<string, string>) {
       // Second installment unpaid and past due → OVERDUE.
       input: loan({
         personId: personIds["María Gómez"],
+        cashBoxId: cashBoxes.lendingId,
         principalAmount: 2_000_000,
         monthlyInterestRate: 10,
         interestType: "SIMPLE",
@@ -86,6 +107,7 @@ async function seedLoans(personIds: Record<string, string>) {
       // Biweekly, first installment partially paid and due in a few days.
       input: loan({
         personId: personIds["Carlos Rodríguez"],
+        cashBoxId: cashBoxes.personalId,
         principalAmount: 500_000,
         monthlyInterestRate: 15,
         interestType: "SIMPLE",
@@ -100,6 +122,7 @@ async function seedLoans(personIds: Record<string, string>) {
       // First installment due today and paid today.
       input: loan({
         personId: personIds["Ana Martínez"],
+        cashBoxId: cashBoxes.lendingId,
         principalAmount: 3_000_000,
         monthlyInterestRate: 8,
         interestType: "SIMPLE",
@@ -114,6 +137,7 @@ async function seedLoans(personIds: Record<string, string>) {
       // Single installment, nothing paid yet, due in 15 days.
       input: loan({
         personId: personIds["Luis Torres"],
+        cashBoxId: cashBoxes.personalId,
         principalAmount: 800_000,
         monthlyInterestRate: 12,
         interestType: "SIMPLE",
@@ -127,6 +151,7 @@ async function seedLoans(personIds: Record<string, string>) {
       // Weekly, third installment overdue.
       input: loan({
         personId: personIds["Pedro Sánchez"],
+        cashBoxId: cashBoxes.lendingId,
         principalAmount: 1_500_000,
         monthlyInterestRate: 10,
         interestType: "SIMPLE",
@@ -144,6 +169,7 @@ async function seedLoans(personIds: Record<string, string>) {
       // Cancelled before any payment.
       input: loan({
         personId: personIds["Juan Pérez"],
+        cashBoxId: cashBoxes.personalId,
         principalAmount: 300_000,
         monthlyInterestRate: 12,
         interestType: "SIMPLE",
@@ -289,7 +315,8 @@ async function main() {
   }
   await resetBusinessData();
   const personIds = await seedPeople();
-  await seedLoans(personIds);
+  const cashBoxes = await seedCashBoxes();
+  await seedLoans(personIds, cashBoxes);
   await seedTransactions();
   await seedCommitments();
 }

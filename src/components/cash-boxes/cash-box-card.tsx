@@ -34,7 +34,8 @@ export function CashBoxCard({ box, actions, href }: CashBoxCardProps) {
           {box.active ? null : <ActiveBadge active={false} />}
         </CardTitle>
         <CardDescription className="text-xs">
-          {box.description ?? `${box.activeLoans} ${box.activeLoans === 1 ? "préstamo activo" : "préstamos activos"}`}
+          {box.description ? `${box.description} · ` : ""}
+          {box.activeLoans} {box.activeLoans === 1 ? "préstamo activo" : "préstamos activos"}
         </CardDescription>
         {actions ? <CardAction>{actions}</CardAction> : null}
       </CardHeader>

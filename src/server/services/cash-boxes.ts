@@ -13,7 +13,7 @@ import {
   toDecimal,
   toNumber,
 } from "@/lib/calculations";
-import { fromIsoDate, type IsoDate, todayIso } from "@/lib/dates";
+import { fromIsoDate, type IsoDate, todayIso, toIsoDate } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import type {
@@ -37,11 +37,15 @@ export async function cashBoxAvailable(db: Db, cashBoxId: string): Promise<Decim
   return cashBoxBalance(movements);
 }
 
-export async function assertCashBoxUsable(db: Db, cashBoxId: string) {
+export async function assertCashBoxUsable(db: Db, cashBoxId: string, field?: string) {
   const box = await db.cashBox.findUnique({ where: { id: cashBoxId }, select: { id: true, name: true, active: true } });
-  if (!box) throw new ServiceError("La caja seleccionada no existe", { cashBoxId: ["La caja no existe"] });
+  if (!box) {
+    const message = "La caja seleccionada no existe";
+    throw new ServiceError(message, field ? { [field]: [message] } : undefined);
+  }
   if (!box.active) {
-    throw new ServiceError(`La caja ${box.name} está inactiva`, { cashBoxId: ["La caja está inactiva"] });
+    const message = `La caja ${box.name} está inactiva`;
+    throw new ServiceError(message, field ? { [field]: ["La caja está inactiva"] } : undefined);
   }
   return { id: box.id, name: box.name };
 }
@@ -53,7 +57,7 @@ export async function assertSufficientBalance(db: Db, cashBoxId: string, amount:
     cashBoxAvailable(db, cashBoxId),
   ]);
   if (available.lt(toDecimal(amount))) {
-    const message = `La caja ${box?.name ?? ""} solo tiene ${formatMoney(toNumber(available))} disponibles`;
+    const message = `La caja ${box?.name ?? "seleccionada"} solo tiene ${formatMoney(toNumber(available))} disponibles`;
     throw new ServiceError(message, { [field]: [message] });
   }
 }
@@ -177,7 +181,7 @@ export async function transferBetweenCashBoxes(fromId: string, input: CashBoxTra
   }
   await prisma.$transaction(async (tx) => {
     const from = await assertCashBoxUsable(tx, fromId);
-    const to = await assertCashBoxUsable(tx, input.toCashBoxId);
+    const to = await assertCashBoxUsable(tx, input.toCashBoxId, "toCashBoxId");
     await assertSufficientBalance(tx, from.id, input.amount, "amount");
 
     const transferGroupId = randomUUID();
@@ -294,20 +298,39 @@ export async function reassignLoanCashBox(loanId: string, cashBoxId: string) {
         id: true,
         cashBoxId: true,
         principalAmount: true,
+        startDate: true,
         person: { select: { name: true } },
         payments: { select: { amount: true } },
         cashBox: { select: { id: true, name: true } },
       },
     });
     if (!loan) throw new NotFoundError("El préstamo");
-    if (!loan.cashBox) throw new ServiceError("El préstamo no tiene caja de origen; asígnale una primero");
     if (loan.cashBoxId === cashBoxId) {
       throw new ServiceError("El préstamo ya pertenece a esa caja", { cashBoxId: ["Elige una caja distinta"] });
     }
 
-    const target = await assertCashBoxUsable(tx, cashBoxId);
+    const target = await assertCashBoxUsable(tx, cashBoxId, "cashBoxId");
+
+    // No prior box: there's nothing to net against, so assign it outright with a
+    // single disbursement instead of computing a reassignment against a box that
+    // never existed.
+    if (!loan.cashBox) {
+      await assertSufficientBalance(tx, target.id, loan.principalAmount, "cashBoxId");
+      await recordLoanDisbursement(tx, {
+        cashBoxId: target.id,
+        loanId: loan.id,
+        amount: loan.principalAmount,
+        movementDate: toIsoDate(loan.startDate),
+        personName: loan.person.name,
+      });
+      await tx.loan.update({ where: { id: loan.id }, data: { cashBoxId: target.id } });
+      return { net: toNumber(loan.principalAmount), fromName: "Sin caja", toName: target.name };
+    }
+
     const net = reassignmentNet(loan.principalAmount, sumMoney(loan.payments.map((p) => p.amount)));
     if (net.gt(0)) await assertSufficientBalance(tx, target.id, net, "cashBoxId");
+    // With a negative net the money leaves the current box, so it's the one that must have enough.
+    if (net.lt(0)) await assertSufficientBalance(tx, loan.cashBox.id, net.abs(), "cashBoxId");
 
     const transferGroupId = randomUUID();
     const movementDate = todayIso();

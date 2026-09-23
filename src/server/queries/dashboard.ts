@@ -29,6 +29,9 @@ export type DashboardMetrics = {
   activeLoans: number;
   overdueLoans: number;
   available: number;
+  cashBoxesAvailable: number;
+  lentOut: number;
+  netWorth: number;
 };
 
 export type MonthlyCashFlowPoint = { month: string; income: number; expense: number };
@@ -166,6 +169,9 @@ export async function getDashboardData(): Promise<DashboardData> {
       activeLoans: countFor("ACTIVE"),
       overdueLoans: countFor("OVERDUE"),
       available: cash.available,
+      cashBoxesAvailable: cash.cashBoxesAvailable,
+      lentOut: cash.lentOut,
+      netWorth: cash.netWorth,
     },
     monthlyCashFlow: months.map((month) => {
       const bucket = cashFlowByMonth.get(month);

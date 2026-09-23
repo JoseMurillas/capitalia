@@ -26,6 +26,7 @@ export type LoanStatusFilter = LoanStatus | "ALL";
 export type LoanListParams = {
   status?: LoanStatusFilter;
   q?: string;
+  cashBoxId?: string;
   page?: number;
   pageSize?: number;
 };
@@ -55,6 +56,7 @@ export async function listLoans(
   const where: Prisma.LoanWhereInput = {
     ...search,
     ...(status === "ALL" ? {} : { status }),
+    ...(params.cashBoxId ? { cashBoxId: params.cashBoxId } : {}),
   };
 
   const [total, loans, grouped] = await Promise.all([

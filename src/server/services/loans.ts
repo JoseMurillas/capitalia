@@ -52,7 +52,7 @@ export async function createLoan(input: LoanInput) {
 
   // The money leaves a box, so the loan and its disbursement are written together.
   return prisma.$transaction(async (tx) => {
-    const cashBox = await assertCashBoxUsable(tx, input.cashBoxId);
+    const cashBox = await assertCashBoxUsable(tx, input.cashBoxId, "cashBoxId");
     await assertSufficientBalance(tx, cashBox.id, input.principalAmount, "principalAmount");
 
     const loan = await tx.loan.create({
@@ -168,7 +168,7 @@ export async function deleteLoan(loanId: string) {
     });
     if (!loan) throw new NotFoundError("El préstamo");
     if (loan._count.payments > 0) {
-      throw new ServiceError("No se puede eliminar un préstamo con pagos registrados");
+      throw new ServiceError("No se puede eliminar un préstamo con pagos registrados; cancélalo en su lugar");
     }
 
     if (loan.cashBoxId && loan.status !== "CANCELLED") {

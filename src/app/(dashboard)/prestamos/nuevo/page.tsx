@@ -1,4 +1,4 @@
-import { UserPlus } from "lucide-react";
+import { PiggyBank, UserPlus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { getString } from "@/lib/search-params";
+import { listCashBoxOptions } from "@/server/queries/cash-boxes";
 import { listActivePeopleOptions } from "@/server/queries/people";
 
 export const metadata: Metadata = { title: "Nuevo préstamo" };
@@ -14,7 +15,7 @@ export const metadata: Metadata = { title: "Nuevo préstamo" };
 export default async function NewLoanPage({ searchParams }: PageProps<"/prestamos/nuevo">) {
   const params = await searchParams;
   const personId = getString(params, "personId");
-  const people = await listActivePeopleOptions();
+  const [people, cashBoxes] = await Promise.all([listActivePeopleOptions(), listCashBoxOptions()]);
 
   return (
     <>
@@ -35,8 +36,19 @@ export default async function NewLoanPage({ searchParams }: PageProps<"/prestamo
             </Button>
           }
         />
+      ) : cashBoxes.length === 0 ? (
+        <EmptyState
+          icon={PiggyBank}
+          title="Primero necesitas una caja"
+          description="Crea la caja de la que saldrá el dinero para poder registrar el préstamo."
+          action={
+            <Button asChild size="sm">
+              <Link href="/prestamos/cajas">Ir a cajas</Link>
+            </Button>
+          }
+        />
       ) : (
-        <LoanForm people={people} defaultPersonId={personId} />
+        <LoanForm people={people} cashBoxes={cashBoxes} defaultPersonId={personId} />
       )}
     </>
   );

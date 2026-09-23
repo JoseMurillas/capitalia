@@ -1,7 +1,9 @@
 import {
   AlertTriangle,
   Banknote,
+  Coins,
   HandCoins,
+  Landmark,
   Percent,
   PiggyBank,
   Plus,
@@ -101,7 +103,21 @@ export default async function DashboardPage() {
           value={<MoneyDisplay value={metrics.available} tone={metrics.available < 0 ? "negative" : "neutral"} />}
           icon={PiggyBank}
           tone="positive"
-          hint="Ingresos − gastos − prestado + cobrado"
+          hint="Efectivo personal: ingresos − gastos − aportes a cajas"
+        />
+        <StatCard
+          title="Capital en cajas"
+          value={<MoneyDisplay value={metrics.cashBoxesAvailable} />}
+          icon={Coins}
+          tone="info"
+          hint="Disponible para prestar"
+        />
+        <StatCard
+          title="Patrimonio total"
+          value={<MoneyDisplay value={metrics.netWorth} />}
+          icon={Landmark}
+          tone="default"
+          hint="Efectivo + cajas + prestado"
         />
       </div>
 

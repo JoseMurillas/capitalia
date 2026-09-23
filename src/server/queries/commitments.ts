@@ -42,7 +42,7 @@ export type CommitmentsOverview = {
   today: IsoDate;
   monthIncome: number;
   monthExpense: number;
-  /** Cash position (income − expenses − lent + collected); never includes card limits. */
+  /** Cash position (income − expenses − deposits into boxes + withdrawals from boxes); never includes card limits. */
   cashAvailable: number;
   recurringPending: number;
   cardPending: number;

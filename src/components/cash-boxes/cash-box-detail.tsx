@@ -5,14 +5,18 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
+import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { EmptyState } from "@/components/shared/empty-state";
 import { MobileCard } from "@/components/shared/mobile-card";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { LoanStatusBadge, StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useUrlParams } from "@/hooks/use-url-params";
 import { formatDate } from "@/lib/dates";
 import { CASH_BOX_COUNTERPARTY_LABELS, CASH_BOX_MOVEMENT_KIND_LABELS } from "@/lib/labels";
+import { CASH_BOX_MOVEMENT_KINDS, type CashBoxMovementKindValue } from "@/lib/validations/cash-box";
 import type { CashBoxDetailDto, CashBoxLoanDto, CashBoxMovementDto, CashBoxOption } from "@/server/queries/cash-boxes";
 
 import { CashBoxCard } from "./cash-box-card";
@@ -21,7 +25,12 @@ import { CashBoxMovementDialog, type CashBoxMovementMode } from "./cash-box-move
 type CashBoxDetailProps = {
   box: CashBoxDetailDto;
   options: CashBoxOption[];
+  /** Movement kind the history is filtered by, from the URL. */
+  kind?: CashBoxMovementKindValue;
+  hasDateFilter: boolean;
 };
+
+const ALL_KINDS = "all";
 
 /** Where the movement came from or went, in one readable cell. */
 function movementContext(movement: CashBoxMovementDto): string {
@@ -30,8 +39,10 @@ function movementContext(movement: CashBoxMovementDto): string {
   return "—";
 }
 
-export function CashBoxDetail({ box, options }: CashBoxDetailProps) {
+export function CashBoxDetail({ box, options, kind, hasDateFilter }: CashBoxDetailProps) {
   const [mode, setMode] = useState<CashBoxMovementMode | null>(null);
+  const { setParams } = useUrlParams();
+  const isFiltered = Boolean(kind) || hasDateFilter;
 
   const movementColumns: DataTableColumn<CashBoxMovementDto>[] = [
     {
@@ -166,9 +177,32 @@ export function CashBoxDetail({ box, options }: CashBoxDetailProps) {
       <Card>
         <CardHeader>
           <CardTitle>Historial</CardTitle>
-          <CardDescription>Todo lo que ha entrado y salido, con el saldo después de cada movimiento.</CardDescription>
+          <CardDescription>
+            Todo lo que ha entrado y salido, con el saldo después de cada movimiento.
+            {isFiltered ? ` Mostrando ${box.movements.length} de ${box.movementsCount}.` : ""}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Select
+              value={kind ?? ALL_KINDS}
+              onValueChange={(value) => setParams({ kind: value === ALL_KINDS ? null : value })}
+            >
+              <SelectTrigger className="w-full sm:w-56" aria-label="Filtrar por tipo de movimiento">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_KINDS}>Todos los movimientos</SelectItem>
+                {CASH_BOX_MOVEMENT_KINDS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {CASH_BOX_MOVEMENT_KIND_LABELS[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <DateRangePicker />
+          </div>
+
           <DataTable
             columns={movementColumns}
             rows={box.movements}
@@ -187,7 +221,12 @@ export function CashBoxDetail({ box, options }: CashBoxDetailProps) {
               />
             )}
             emptyState={
-              <EmptyState icon={History} title="Sin movimientos" description="Deposita capital para empezar." className="py-6" />
+              <EmptyState
+                icon={History}
+                title={isFiltered ? "Nada con este filtro" : "Sin movimientos"}
+                description={isFiltered ? "Ajusta el tipo o el rango de fechas." : "Deposita capital para empezar."}
+                className="py-6"
+              />
             }
           />
         </CardContent>

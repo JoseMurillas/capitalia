@@ -12,6 +12,21 @@ import {
 export const CASH_BOX_COUNTERPARTIES = ["PERSONAL_FINANCES", "EXTERNAL"] as const;
 export type CashBoxCounterpartyValue = (typeof CASH_BOX_COUNTERPARTIES)[number];
 
+/** Every movement kind, in ledger order; used by the history filter. */
+export const CASH_BOX_MOVEMENT_KINDS = [
+  "OPENING",
+  "DEPOSIT",
+  "WITHDRAWAL",
+  "TRANSFER_IN",
+  "TRANSFER_OUT",
+  "LOAN_DISBURSEMENT",
+  "LOAN_PAYMENT",
+  "LOAN_REVERSAL",
+  "LOAN_REASSIGNMENT",
+  "ADJUSTMENT",
+] as const;
+export type CashBoxMovementKindValue = (typeof CASH_BOX_MOVEMENT_KINDS)[number];
+
 export const cashBoxSchema = z.object({
   name: z.string().trim().min(2, { error: "Escribe el nombre de la caja" }).max(60),
   description: optionalTrimmed(300),

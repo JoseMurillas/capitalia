@@ -54,6 +54,13 @@ export type CashBoxMovementDto = {
 
 export type CashBoxDetailDto = CashBoxDto & { loans: CashBoxLoanDto[]; movements: CashBoxMovementDto[] };
 
+/** Narrows the history shown; the running balance is always computed over the whole ledger. */
+export type CashBoxHistoryFilters = {
+  kind?: CashBoxMovementKind;
+  from?: IsoDate;
+  to?: IsoDate;
+};
+
 export type CashBoxesSummary = {
   count: number;
   totalAvailable: number;
@@ -127,7 +134,10 @@ export async function listCashBoxOptions(): Promise<CashBoxOption[]> {
   }));
 }
 
-export async function getCashBoxDetail(id: string): Promise<CashBoxDetailDto | null> {
+export async function getCashBoxDetail(
+  id: string,
+  filters: CashBoxHistoryFilters = {},
+): Promise<CashBoxDetailDto | null> {
   await requireSession();
   const box = await prisma.cashBox.findUnique({
     where: { id },
@@ -149,7 +159,11 @@ export async function getCashBoxDetail(id: string): Promise<CashBoxDetailDto | n
   const [movements, relatedBoxes] = await Promise.all([
     prisma.cashBoxMovement.findMany({
       where: { cashBoxId: id },
-      orderBy: [{ movementDate: "asc" }, { createdAt: "asc" }],
+      // The running balance follows the order the ledger was actually written
+      // (createdAt), not the business date shown per row (movementDate) — a
+      // backdated entry (e.g. a loan disbursement dated at startDate) would
+      // otherwise make the balance dip below its real value mid-list.
+      orderBy: [{ createdAt: "asc" }],
     }),
     prisma.cashBox.findMany({ select: { id: true, name: true } }),
   ]);
@@ -174,8 +188,16 @@ export async function getCashBoxDetail(id: string): Promise<CashBoxDetailDto | n
       status: loan.status,
       startDate: toIsoDate(loan.startDate),
     })),
-    // Newest first for reading, but the running balance is computed oldest first.
+    // Newest first for reading, but the running balance is computed oldest first
+    // over the *whole* ledger: filtering happens afterwards so each row keeps the
+    // balance the box really had at that point.
     movements: runningBalance(movements)
+      .filter(
+        (movement) =>
+          (!filters.kind || movement.kind === filters.kind) &&
+          (!filters.from || toIsoDate(movement.movementDate) >= filters.from) &&
+          (!filters.to || toIsoDate(movement.movementDate) <= filters.to),
+      )
       .map((movement) => ({
         id: movement.id,
         kind: movement.kind,

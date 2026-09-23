@@ -14,6 +14,7 @@ import { type IsoDate, toIsoDate } from "@/lib/dates";
 
 export const loanSummaryInclude = {
   person: { select: { id: true, name: true } },
+  cashBox: { select: { id: true, name: true } },
   installments: { orderBy: { installmentNumber: "asc" } },
 } satisfies Prisma.LoanInclude;
 
@@ -32,6 +33,8 @@ export type LoanSummaryDto = {
   id: string;
   personId: string;
   personName: string;
+  cashBoxId: string | null;
+  cashBoxName: string | null;
   principalAmount: number;
   monthlyInterestRate: number;
   interestType: InterestType;
@@ -126,6 +129,8 @@ export function toLoanSummaryDto(loan: LoanWithInstallments): LoanSummaryDto {
     id: loan.id,
     personId: loan.person.id,
     personName: loan.person.name,
+    cashBoxId: loan.cashBoxId,
+    cashBoxName: loan.cashBox?.name ?? null,
     principalAmount: toNumber(loan.principalAmount),
     monthlyInterestRate: toNumber(loan.monthlyInterestRate),
     interestType: loan.interestType,
