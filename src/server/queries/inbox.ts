@@ -22,6 +22,8 @@ export type InboxMessageDto = {
   amount: number | null;
   direction: InboxDirection;
   description: string;
+  /** Who received the money, or who sent it, when the receipt says so. */
+  counterparty: string | null;
   suggestedDate: IsoDate;
   suggestedCategory: TransactionCategoryValue;
   transactionId: string | null;
@@ -77,6 +79,7 @@ export async function listInboxMessages(params: InboxListParams = {}): Promise<P
         amount: m.amount ? toNumber(m.amount) : null,
         direction: m.direction,
         description,
+        counterparty: m.counterparty,
         suggestedDate: m.suggestedDate ? toIsoDate(m.suggestedDate) : toIsoDate(m.receivedAt),
         suggestedCategory: guessCategory(type, description),
         transactionId: m.transactionId,

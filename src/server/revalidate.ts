@@ -8,6 +8,7 @@ const FINANCE_PATHS = [
   "/finanzas/recurrentes",
   "/finanzas/tarjetas",
   "/prestamos/cajas",
+  "/prestamos/recordatorios",
   "/dashboard",
   "/reportes",
 ];

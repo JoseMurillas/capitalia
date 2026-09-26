@@ -46,7 +46,7 @@ export const reminderDaysSchema = z.preprocess(
     .max(60, { error: "Máximo 60 días" }),
 );
 
-export const reminderSettingsSchema = z.object({ days: reminderDaysSchema });
+export const reminderDaysSettingsSchema = z.object({ days: reminderDaysSchema });
 
 export const idSchema = z.string().trim().min(1, { error: "Identificador requerido" });
 

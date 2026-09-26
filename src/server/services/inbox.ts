@@ -45,6 +45,7 @@ export async function receiveInboxMessages(payload: InboxPayload): Promise<{ rec
           amount: parsed.amount !== null ? toDbString(parsed.amount) : null,
           direction: parsed.direction,
           description: parsed.description,
+          counterparty: parsed.counterparty,
           suggestedDate: fromIsoDate(parsed.transactionDate),
         };
       }),

@@ -155,3 +155,62 @@ describe("parseBankMessage", () => {
     expect(result.amount).toBe(1250000);
   });
 });
+
+const BBVA_BREB = `Tu envío con llave fue exitoso
+[image: BBVA Logo]
+[image: Icono BBVA] *El envío se completó correctamente*
+Jose alejandro Murillas , tu envío a través de Bre-B fue exitoso. La llave
+@DLJMZ64001 recibió el valor que le enviaste.
+*Detalles de la operación*
+Fecha y hora
+*2026/09/26 09:03*
+Valor enviado
+*$ 50.000,00*
+Persona que recibe
+*Jose Alejandro Murillas Zuñiga*
+Entidad que recibe
+*Dale*
+Tipo de llave
+*Alfanumérica*
+Cuenta origen
+******4131*
+Código de operación
+*10336095887248696253736118442955428*
+*Envía más rápido con tus contactos guardados*
+
+Guarda las llaves que usas con frecuencia para encontrarlas en segundos.
+*¿No fuiste tú?*
+
+Si no reconoces esta operación, por favor comunícate lo antes posible a la Línea BBVA.
+01 8000 912 227
+bbva.com.co
+BBVA Colombia. Establecimiento Bancario.`;
+
+describe("parseBankMessage: envío Bre-B de BBVA", () => {
+  const result = parseBankMessage({
+    subject: "Tu envío con llave fue exitoso",
+    text: BBVA_BREB,
+    receivedDate: RECEIVED,
+  });
+
+  it("reads who received the money from the line below the label", () => {
+    expect(result.counterparty).toBe("Jose Alejandro Murillas Zuñiga");
+  });
+
+  it("leaves the description as the subject says it: what happened, not who got it", () => {
+    expect(result.description).toBe("Tu envío con llave fue exitoso");
+  });
+
+  it("reads the amount sent, not the operation code or the account mask", () => {
+    expect(result.amount).toBe(50000);
+  });
+
+  it("takes the date of the operation over the day the email arrived", () => {
+    expect(result.transactionDate).toBe("2026-09-26");
+  });
+
+  it("knows the money went out", () => {
+    expect(result.direction).toBe("EXPENSE");
+    expect(result.kind).toBe("TRANSACTION");
+  });
+});

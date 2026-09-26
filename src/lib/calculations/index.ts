@@ -10,3 +10,4 @@ export * from "./recurring";
 export * from "./credit-cards";
 export * from "./commitments";
 export * from "./cash-boxes";
+export * from "./reminders";

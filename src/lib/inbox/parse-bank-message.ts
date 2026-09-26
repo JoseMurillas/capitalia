@@ -21,6 +21,8 @@ export type ParsedBankMessage = {
   amount: number | null;
   direction: "INCOME" | "EXPENSE" | "UNKNOWN";
   description: string;
+  /** Who received the money, or who sent it. Null when the message never says. */
+  counterparty: string | null;
   transactionDate: string;
   category: TransactionCategoryValue;
 };
@@ -50,6 +52,26 @@ const LABELLED_NAMES = [
   /(?<!cuenta )(?<!cuenta de )origen\s*:\s*([^\n]+)/i,
 ];
 const LABELLED_DATE = /fecha[^:\n]*:\s*([^\n]+)/i;
+
+// Bre-B receipts drop the colon and put the value on the next line:
+//   Persona que recibe
+//   *Jose Alejandro Murillas Zuñiga*
+// Matching is exact, so "Valor: $6.500" stays with the "Etiqueta: valor" reader
+// above and only a bare label picks up the line below it.
+const STACKED_COUNTERPARTY = [
+  "persona que recibe",
+  "persona que envia",
+  "beneficiario",
+  "destinatario",
+  "remitente",
+  "nombre del comercio",
+  "comercio",
+  "establecimiento",
+  // The wallet or bank, which is a poorer answer than a person but better than none.
+  "entidad que recibe",
+];
+const STACKED_AMOUNT = ["valor enviado", "valor recibido", "valor", "monto", "importe", "total"];
+const STACKED_DATE = ["fecha y hora", "fecha de la operacion", "fecha"];
 
 // Money: "$45.000,00", "$ 1.250.000", "COP 350,000.00", "45.000 pesos".
 const MONEY = /(?:\$|cop\s?\$?|usd)\s*([\d.,]+)|([\d][\d.,]*)\s*pesos/gi;
@@ -89,8 +111,9 @@ function toIso(year: number, month: number, day: number): string | null {
 }
 
 export function extractDate(text: string): string | null {
-  // ISO first: "2026-09-14" would otherwise be misread as 26/09/14 by the dd/MM/yy pattern.
-  const iso = /(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)/.exec(text);
+  // Year first: "2026-09-14" and "2026/09/26" would otherwise be misread as
+  // day-first by the dd/MM/yy pattern below.
+  const iso = /(?<!\d)(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)/.exec(text);
   if (iso) {
     const value = toIso(Number(iso[1]), Number(iso[2]), Number(iso[3]));
     if (value) return value;
@@ -132,6 +155,43 @@ export function extractCounterparty(text: string, direction: ParsedBankMessage["
   return null;
 }
 
+/**
+ * Reads the "label on one line, value on the next" layout. Only the labels
+ * listed above are looked up, so an ordinary sentence followed by another one
+ * can never be mistaken for a field.
+ */
+function extractStackedFields(rawText: string) {
+  const lines = rawText.replace(/\r/g, "").split("\n");
+  const found = new Map<string, string>();
+
+  for (let i = 0; i < lines.length - 1; i += 1) {
+    const label = normalizeText(lines[i].replace(/[*:]/g, " "));
+    if (!label || found.has(label)) continue;
+    // Bold markers survive the conversion to plain text; the value keeps the rest.
+    const value = lines[i + 1].replace(/\*/g, "").replace(/[.,;:]+$/, "").trim();
+    if (value) found.set(label, value);
+  }
+
+  const pick = (labels: string[]) => {
+    for (const label of labels) {
+      const value = found.get(label);
+      if (value) return value;
+    }
+    return null;
+  };
+
+  const name = pick(STACKED_COUNTERPARTY);
+  const amount = pick(STACKED_AMOUNT);
+  const date = pick(STACKED_DATE);
+
+  return {
+    // Account masks and codes are not names.
+    name: name && name.length >= 3 && /[a-záéíóúñ]/i.test(name) && !/^\d/.test(name) ? name : null,
+    amount: amount ? parseMoney(amount) : null,
+    date: date ? extractDate(date) : null,
+  };
+}
+
 /** "Etiqueta: valor" receipts keep their line breaks; read those fields before flattening. */
 function extractLabelledFields(rawText: string) {
   const lines = rawText.replace(/\r/g, "").replace(/[ \t]+/g, " ");
@@ -158,10 +218,11 @@ function extractLabelledFields(rawText: string) {
 
 export function parseBankMessage(message: BankMessage): ParsedBankMessage {
   const labelled = extractLabelledFields(message.text);
+  const stacked = extractStackedFields(message.text);
   const text = message.text.replace(/\s+/g, " ").trim();
   const subject = normalizeText(message.subject ?? "");
   const normalized = normalizeText(`${message.subject ?? ""} ${text}`);
-  const transactionDate = labelled.date ?? extractDate(text) ?? message.receivedDate;
+  const transactionDate = labelled.date ?? stacked.date ?? extractDate(text) ?? message.receivedDate;
 
   if (NOTICE_PATTERNS.test(subject) || (NOTICE_PATTERNS.test(normalized) && labelled.amount === null)) {
     return {
@@ -169,6 +230,7 @@ export function parseBankMessage(message: BankMessage): ParsedBankMessage {
       amount: null,
       direction: "UNKNOWN",
       description: (message.subject?.trim() || text.slice(0, 80)).slice(0, 200),
+      counterparty: null,
       transactionDate,
       category: "OTHER_EXPENSE",
     };
@@ -180,11 +242,17 @@ export function parseBankMessage(message: BankMessage): ParsedBankMessage {
   else if (INCOME_WORDS.test(normalized)) direction = "INCOME";
   else if (EXPENSE_WORDS.test(normalized)) direction = "EXPENSE";
 
-  const amount = labelled.amount ?? extractAmount(text);
-  const counterparty =
+  const amount = labelled.amount ?? stacked.amount ?? extractAmount(text);
+  // What the movement was. A receipt that names the shop describes itself better
+  // than its own subject line does.
+  const named =
     (labelled.name && labelled.name.length >= 2 ? labelled.name : null) ??
     extractCounterparty(text, direction === "INCOME" ? "INCOME" : "EXPENSE");
-  const description = counterparty ?? message.subject?.trim() ?? text.slice(0, 80);
+  const description = named ?? message.subject?.trim() ?? text.slice(0, 80);
+  // Who was on the other side. A receipt that states it outright — "Persona que
+  // recibe" — is believed over a name guessed from the prose, and this is kept
+  // apart from the description so naming the person never rewrites what happened.
+  const counterparty = stacked.name ?? named;
   // The counterparty drives the category; the opening of the body is a fallback, never the
   // footer, because bank footers advertise every category ("pagos de servicios públicos…").
   const type = direction === "INCOME" ? "INCOME" : "EXPENSE";
@@ -192,5 +260,13 @@ export function parseBankMessage(message: BankMessage): ParsedBankMessage {
   let category = guessCategory(type, description);
   if (category === fallback) category = guessCategory(type, text.slice(0, 160));
 
-  return { kind: "TRANSACTION", amount, direction, description: description.slice(0, 200), transactionDate, category };
+  return {
+    kind: "TRANSACTION",
+    amount,
+    direction,
+    description: description.slice(0, 200),
+    counterparty: counterparty ? counterparty.slice(0, 120) : null,
+    transactionDate,
+    category,
+  };
 }

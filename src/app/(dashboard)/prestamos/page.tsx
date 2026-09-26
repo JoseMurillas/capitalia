@@ -1,4 +1,4 @@
-import { PiggyBank } from "lucide-react";
+import { BellRing, PiggyBank } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -30,12 +30,20 @@ export default async function LoansPage({ searchParams }: PageProps<"/prestamos"
         title="Préstamos"
         description="Capital prestado, saldos y próximas cuotas de cada préstamo."
         actions={
-          <Button variant="outline" asChild>
-            <Link href="/prestamos/cajas">
-              <PiggyBank aria-hidden="true" />
-              Cajas
-            </Link>
-          </Button>
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/prestamos/recordatorios">
+                <BellRing aria-hidden="true" />
+                Recordatorios
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/prestamos/cajas">
+                <PiggyBank aria-hidden="true" />
+                Cajas
+              </Link>
+            </Button>
+          </>
         }
       />
       <LoansList result={result} status={status} query={q} cashBoxes={cashBoxes} cashBoxId={cashBoxId} />

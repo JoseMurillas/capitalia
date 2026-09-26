@@ -7,6 +7,8 @@ import type {
   LoanStatus,
   PaymentKind,
   PaymentMethod,
+  PaymentReminderKind,
+  PaymentReminderStatus,
   RecurringFrequency,
   RecurringPaymentMethod,
   TransactionCategory,
@@ -121,6 +123,24 @@ export const CASH_BOX_COUNTERPARTY_LABELS: Record<CashBoxCounterparty, string> =
   PERSONAL_FINANCES: "Finanzas personales",
   EXTERNAL: "Externo",
 };
+
+export const REMINDER_KIND_LABELS: Record<PaymentReminderKind, string> = {
+  BEFORE_DUE: "Antes de vencer",
+  OVERDUE: "Vencida",
+};
+
+export const REMINDER_STATUS_LABELS: Record<PaymentReminderStatus, string> = {
+  PENDING: "Pendiente",
+  SENT: "Enviado",
+  FAILED: "Falló",
+  SKIPPED: "No enviado",
+};
+
+/** "Antes de vencer" or "Vencida hace 8 días", which is what the email says too. */
+export function reminderKindLabel(kind: PaymentReminderKind, daysOverdue: number | null): string {
+  if (kind !== "OVERDUE" || daysOverdue === null) return REMINDER_KIND_LABELS[kind];
+  return `Vencida hace ${daysOverdue === 1 ? "1 día" : `${daysOverdue} días`}`;
+}
 
 /** "Vence en 3 días", "Vence hoy", "Venció hace 2 días". */
 export function dueInLabel(daysUntilDue: number): string {

@@ -50,6 +50,17 @@ export async function verifyInboxToken(provided: string): Promise<boolean> {
   return false;
 }
 
+/**
+ * The secret Vercel Cron sends with every scheduled call. Compared the same way
+ * as the inbox token — hashed first, then byte by byte in constant time — so the
+ * two entrances to the automation endpoints are equally hard to guess.
+ */
+export function verifyCronSecret(provided: string): boolean {
+  const secret = process.env.CRON_SECRET;
+  if (!provided || !secret) return false;
+  return timingSafeEqual(Buffer.from(hashToken(secret)), Buffer.from(hashToken(provided)));
+}
+
 export const DEFAULT_REMINDER_DAYS_KEY = "default_reminder_days";
 export const DEFAULT_REMINDER_DAYS = 3;
 
@@ -63,4 +74,38 @@ export async function getDefaultReminderDays(): Promise<number> {
 
 export async function setDefaultReminderDays(days: number): Promise<void> {
   await setSetting(DEFAULT_REMINDER_DAYS_KEY, String(days));
+}
+
+export const REMINDERS_ENABLED_KEY = "reminders_enabled";
+export const REMINDER_SIGNATURE_KEY = "reminder_signature";
+export const REMINDER_CONTACT_KEY = "reminder_contact";
+
+export type ReminderSettings = {
+  /** When false nothing is generated and nothing is sent. */
+  enabled: boolean;
+  /** Name the emails are signed with. */
+  signature: string;
+  /** Phone or WhatsApp offered in the email; null hides that line. */
+  contact: string | null;
+};
+
+/** Reminders stay off until the user turns them on; the signature defaults to the admin's name. */
+export async function getReminderSettings(): Promise<ReminderSettings> {
+  const [enabled, signature, contact] = await Promise.all([
+    getSetting(REMINDERS_ENABLED_KEY),
+    getSetting(REMINDER_SIGNATURE_KEY),
+    getSetting(REMINDER_CONTACT_KEY),
+  ]);
+  if (signature) return { enabled: enabled === "true", signature, contact: contact || null };
+
+  const admin = await prisma.user.findFirst({ orderBy: { createdAt: "asc" }, select: { name: true } });
+  return { enabled: enabled === "true", signature: admin?.name ?? "Capitalia", contact: contact || null };
+}
+
+export async function setReminderSettings(input: ReminderSettings): Promise<void> {
+  await Promise.all([
+    setSetting(REMINDERS_ENABLED_KEY, String(input.enabled)),
+    setSetting(REMINDER_SIGNATURE_KEY, input.signature),
+    setSetting(REMINDER_CONTACT_KEY, input.contact ?? ""),
+  ]);
 }

@@ -34,7 +34,9 @@ export default auth((request) => {
 
 export const config = {
   matcher: [
-    // Everything except Auth.js routes, the token-protected inbox API, Next internals and static assets.
-    "/((?!api/auth|api/inbox|_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // Everything except Auth.js routes, the two token-protected APIs (the bank
+    // inbox and the reminders cron, which carry a secret instead of a session),
+    // Next internals and static assets.
+    "/((?!api/auth|api/inbox|api/recordatorios|_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

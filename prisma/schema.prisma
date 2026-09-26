@@ -114,6 +114,32 @@ enum CashBoxCounterparty {
   EXTERNAL
 }
 
+enum PaymentReminderKind {
+  BEFORE_DUE
+  OVERDUE
+}
+
+enum PaymentReminderStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/// Why a reminder was never sent. Inferring it from the row is not possible:
+/// three different situations end in SKIPPED and they mean opposite things to
+/// whoever reads the screen.
+enum PaymentReminderSkipReason {
+  /// The person has no address on file.
+  NO_EMAIL
+  /// The installment was paid between generating the reminder and sending it.
+  ALREADY_PAID
+  /// The loan was cancelled in that same window.
+  LOAN_CANCELLED
+  /// It sat unsent so long that its text is no longer true.
+  STALE
+}
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
@@ -199,6 +225,7 @@ model Installment {
 
   payments    Payment[]
   allocations PaymentAllocation[]
+  reminders   PaymentReminder[]
 
   @@unique([loanId, installmentNumber])
   @@index([dueDate, status])
@@ -305,6 +332,8 @@ model InboxMessage {
   amount        Decimal?       @db.Decimal(15, 2)
   direction     InboxDirection @default(UNKNOWN)
   description   String?
+  /// Who received the money, or who sent it, when the receipt says so.
+  counterparty  String?
   suggestedDate DateTime?      @db.Date
   transactionId String?        @unique
   transaction   Transaction?   @relation(fields: [transactionId], references: [id], onDelete: SetNull)
@@ -479,4 +508,40 @@ model CashBoxMovement {
   @@index([loanId])
   @@index([transferGroupId])
   @@map("cash_box_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Payment reminders: emails sent to the borrower before and after the due date
+// ---------------------------------------------------------------------------
+
+/// One reminder for one installment on one day. The unique key is what makes
+/// generation idempotent: asking twice on the same day cannot duplicate a row.
+model PaymentReminder {
+  id             String                @id @default(cuid(2))
+  installmentId  String
+  installment    Installment           @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  kind           PaymentReminderKind
+  /// The day it is due to go out; "today" when it is generated.
+  scheduledFor   DateTime              @db.Date
+  status         PaymentReminderStatus @default(PENDING)
+  /// Address at generation time; null means the person had none (SKIPPED).
+  recipientEmail String?
+  /// What the installment still owed that day.
+  amount         Decimal               @db.Decimal(15, 2)
+  subject        String
+  /// Days late for OVERDUE; null for BEFORE_DUE.
+  daysOverdue    Int?
+  /// Set only when status is SKIPPED.
+  skipReason     PaymentReminderSkipReason?
+  /// Claimed the moment a send starts, so two runs cannot take the same row,
+  /// and kept as the delivery time once it succeeds.
+  sentAt         DateTime?
+  /// Error reported by the sending script when status is FAILED.
+  error          String?
+  createdAt      DateTime              @default(now())
+
+  @@unique([installmentId, kind, scheduledFor])
+  @@index([status, scheduledFor])
+  @@index([scheduledFor])
+  @@map("payment_reminders")
 }

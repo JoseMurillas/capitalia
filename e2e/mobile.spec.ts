@@ -15,9 +15,11 @@ test("phone layout: bottom navigation, card lists and bottom-sheet dialogs", asy
   await expect(page).toHaveURL(/\/prestamos$/);
   await expect(page.getByRole("heading", { name: "Préstamos" })).toBeVisible();
 
-  // Rows render as cards, not a squeezed table.
+  // Rows render as cards, not a squeezed table. The list is paginated, so the
+  // seeded loans are looked up rather than assumed to be on the first page.
   await expect(page.getByRole("table")).toBeHidden();
-  const firstCard = page.getByRole("link", { name: /Pedro Sánchez|María Gómez|Juan Pérez|Ana Martínez/ }).first();
+  await page.getByPlaceholder("Buscar por persona o documento").fill("Pedro Sánchez");
+  const firstCard = page.getByRole("link", { name: /Pedro Sánchez/ }).first();
   await expect(firstCard).toBeVisible();
   await page.screenshot({ path: screenshotPath("mobile-loans"), fullPage: true });
 

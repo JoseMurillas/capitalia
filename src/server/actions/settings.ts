@@ -7,10 +7,11 @@ import { Prisma } from "@/generated/prisma/client";
 import { unstable_update } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { changePasswordSchema, profileSchema } from "@/lib/validations/auth";
-import { reminderSettingsSchema } from "@/lib/validations/common";
+import { reminderDaysSettingsSchema } from "@/lib/validations/common";
+import { reminderSettingsSchema } from "@/lib/validations/reminder";
 import { parseInput, runAction } from "@/server/action-utils";
 import { requireSession } from "@/server/auth";
-import { rotateInboxToken, setDefaultReminderDays } from "@/server/services/settings";
+import { rotateInboxToken, setDefaultReminderDays, setReminderSettings } from "@/server/services/settings";
 import { type ActionResult, fail, ok } from "@/types";
 
 const BCRYPT_ROUNDS = 12;
@@ -78,12 +79,24 @@ export async function rotateInboxTokenAction(): Promise<ActionResult<{ token: st
 export async function updateReminderDaysAction(input: unknown): Promise<ActionResult> {
   return runAction(async () => {
     await requireSession();
-    const parsed = parseInput(reminderSettingsSchema, input);
+    const parsed = parseInput(reminderDaysSettingsSchema, input);
     if (!parsed.ok) return parsed.result;
     await setDefaultReminderDays(parsed.data.days);
     revalidatePath("/configuracion");
     revalidatePath("/finanzas/recurrentes");
     revalidatePath("/finanzas/tarjetas");
+    return ok(undefined);
+  });
+}
+
+export async function updateReminderSettingsAction(input: unknown): Promise<ActionResult> {
+  return runAction(async () => {
+    await requireSession();
+    const parsed = parseInput(reminderSettingsSchema, input);
+    if (!parsed.ok) return parsed.result;
+    await setReminderSettings(parsed.data);
+    revalidatePath("/configuracion");
+    revalidatePath("/prestamos/recordatorios");
     return ok(undefined);
   });
 }

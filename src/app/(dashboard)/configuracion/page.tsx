@@ -5,24 +5,28 @@ import { InboxSetupCard } from "@/components/settings/inbox-setup-card";
 import { PasswordForm } from "@/components/settings/password-form";
 import { ProfileForm } from "@/components/settings/profile-form";
 import { ReminderSettingsCard } from "@/components/settings/reminder-settings-card";
+import { ReminderSetupCard } from "@/components/settings/reminder-setup-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { INTEREST_TYPE_LABELS } from "@/lib/labels";
 import { requireSession } from "@/server/auth";
-import { getDefaultReminderDays, hasInboxToken } from "@/server/services/settings";
+import { isMailerConfigured } from "@/server/mailer";
+import { getDefaultReminderDays, getReminderSettings, hasInboxToken } from "@/server/services/settings";
 
 export const metadata: Metadata = { title: "Configuración" };
 
 export default async function SettingsPage() {
-  const [user, headerStore, inboxConfigured, defaultReminderDays] = await Promise.all([
+  const [user, headerStore, inboxConfigured, defaultReminderDays, reminderSettings] = await Promise.all([
     requireSession(),
     headers(),
     hasInboxToken(),
     getDefaultReminderDays(),
+    getReminderSettings(),
   ]);
   const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host") ?? "localhost:3000";
   const protocol = headerStore.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const endpointUrl = `${protocol}://${host}/api/inbox`;
+  const remindersUrl = `${protocol}://${host}/api/recordatorios`;
 
   return (
     <>
@@ -32,6 +36,11 @@ export default async function SettingsPage() {
         <PasswordForm />
         <ReminderSettingsCard defaultDays={defaultReminderDays} />
         <InboxSetupCard endpointUrl={endpointUrl} hasToken={inboxConfigured} />
+        <ReminderSetupCard
+          settings={reminderSettings}
+          mailerReady={isMailerConfigured()}
+          endpointUrl={remindersUrl}
+        />
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Reglas financieras</CardTitle>

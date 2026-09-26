@@ -33,14 +33,28 @@ test.describe("Capitalia end to end", () => {
     await personDialog.getByLabel("Teléfono").fill("3000000000");
     await personDialog.getByRole("button", { name: "Crear persona" }).click();
     await expect(personDialog).toBeHidden();
+    // The list is paginated and sorted by name, so a new person is not
+    // necessarily on the first page: look them up instead of assuming.
+    await page.getByPlaceholder("Buscar por nombre, documento o teléfono").fill(personName);
     await expect(page.getByRole("link", { name: personName })).toBeVisible();
+
+    // Its own box, funded for this run: lending from the seeded one drains it a
+    // little on every run, and the suite would start failing for lack of capital.
+    const boxName = uniqueName("Caja smoke");
+    await page.goto("/prestamos/cajas");
+    await page.getByRole("button", { name: "Nueva caja" }).click();
+    const boxDialog = page.getByRole("dialog", { name: "Nueva caja" });
+    await boxDialog.getByLabel("Nombre").fill(boxName);
+    await boxDialog.getByLabel("Capital inicial").fill("1500000");
+    await boxDialog.getByRole("button", { name: "Crear caja" }).click();
+    await expect(boxDialog).toBeHidden();
 
     // Create a loan: 1.000.000 at 12 % in 3 monthly installments.
     await page.goto("/prestamos/nuevo");
     await page.getByLabel("Persona").click();
     await page.getByRole("option", { name: new RegExp(personName) }).click();
     await page.getByLabel("Caja").click();
-    await page.getByRole("option", { name: /José Murillas/ }).click();
+    await page.getByRole("option", { name: new RegExp(boxName) }).click();
     await page.getByLabel("Monto prestado").fill("1000000");
     await page.getByLabel("Interés mensual (%)").fill("12");
     await page.getByLabel("Número de cuotas").fill("3");

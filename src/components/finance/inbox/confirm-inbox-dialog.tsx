@@ -52,6 +52,20 @@ type ConfirmInboxDialogProps = {
   onOpenChange: (open: boolean) => void;
 };
 
+/**
+ * The note keeps what the email said plus who was on the other side, which is
+ * the one thing the description does not carry and the one thing you want when
+ * you read the movement back months later.
+ */
+function toNotes(message: InboxMessageDto, type: "INCOME" | "EXPENSE"): string {
+  const parts: string[] = [];
+  if (message.subject) parts.push(`Correo: ${message.subject}`);
+  if (message.counterparty) {
+    parts.push(type === "INCOME" ? `De: ${message.counterparty}` : `Para: ${message.counterparty}`);
+  }
+  return parts.join(" · ").slice(0, 200);
+}
+
 function toValues(message: InboxMessageDto | null): FormValues {
   const type = message?.direction === "INCOME" ? "INCOME" : "EXPENSE";
   return {
@@ -60,7 +74,7 @@ function toValues(message: InboxMessageDto | null): FormValues {
     amount: message?.amount ?? "",
     description: message?.description ?? "",
     transactionDate: message?.suggestedDate ?? "",
-    notes: message?.subject ? `Correo: ${message.subject}`.slice(0, 200) : "",
+    notes: message ? toNotes(message, type) : "",
   };
 }
 
