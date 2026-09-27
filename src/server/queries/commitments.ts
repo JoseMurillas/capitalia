@@ -2,6 +2,8 @@ import "server-only";
 
 import type { RecurringPaymentMethod, TransactionCategory } from "@/generated/prisma/enums";
 import {
+  availableMoney,
+  type AvailableMoneyBasis,
   buildMonthPlan,
   type CommitmentStatus,
   filterUpcoming,
@@ -12,6 +14,7 @@ import {
 import { type IsoDate, todayIso } from "@/lib/dates";
 import { requireSession } from "@/server/auth";
 
+import { getAccountsSummary } from "./accounts";
 import { type CreditCardDto, listCreditCards } from "./credit-cards";
 import { listRecurringExpenses, type RecurringExpenseDto, type RecurringSummary } from "./recurring";
 import { getFinanceSummary } from "./transactions";
@@ -44,14 +47,22 @@ export type CommitmentsOverview = {
   today: IsoDate;
   monthIncome: number;
   monthExpense: number;
-  /** Cash position (income − expenses − deposits into boxes + withdrawals from boxes); never includes card limits. */
+  /**
+   * The money you have: the sum of the active accounts once there is at least
+   * one, and the global cash position (income − expenses − deposits into boxes +
+   * withdrawals from boxes) while there is none. Never includes card limits.
+   */
   cashAvailable: number;
+  /** Which of the two the two figures above and below came from. */
+  availableBasis: AvailableMoneyBasis;
   recurringPending: number;
   cardPending: number;
   reserveNeeded: number;
   estimatedAvailable: number;
   monthlyCommitted: number;
   activeRecurringCount: number;
+  /** Finance movements still without an account, so the Resumen can warn too (spec §4.2). */
+  unassignedCount: number;
   alerts: CommitmentDto[];
   upcoming: UpcomingCommitments;
   recurringSummary: RecurringSummary;
@@ -111,7 +122,11 @@ export async function getUpcomingCommitments(horizonDays = DASHBOARD_HORIZON_DAY
 export async function getCommitmentsOverview(): Promise<CommitmentsOverview> {
   await requireSession();
   const today = todayIso();
-  const [{ recurring, cards, commitments }, finance] = await Promise.all([loadActive(), getFinanceSummary()]);
+  const [{ recurring, cards, commitments }, finance, accounts] = await Promise.all([
+    loadActive(),
+    getFinanceSummary(),
+    getAccountsSummary(),
+  ]);
 
   const plan = buildMonthPlan({
     today,
@@ -121,18 +136,29 @@ export async function getCommitmentsOverview(): Promise<CommitmentsOverview> {
     cards,
   });
   const upcoming = upcomingWithin(commitments, OVERVIEW_HORIZON_DAYS);
+  // Which formula the two «disponible» cards are entitled to use is a business
+  // rule, so it is decided by a tested function and not by an `if` in here.
+  const available = availableMoney({
+    activeAccountCount: accounts.activeCount,
+    accountsTotal: accounts.total,
+    cashPosition: finance.available,
+    reserveNeeded: plan.reserveNeeded,
+    monthEstimate: plan.estimatedAvailable,
+  });
 
   return {
     today,
     monthIncome: finance.monthIncome,
     monthExpense: finance.monthExpense,
-    cashAvailable: finance.available,
+    cashAvailable: toNumber(available.cashAvailable),
+    availableBasis: available.basis,
     recurringPending: toNumber(plan.recurringPending),
     cardPending: toNumber(plan.cardPending),
     reserveNeeded: toNumber(plan.reserveNeeded),
-    estimatedAvailable: toNumber(plan.estimatedAvailable),
+    estimatedAvailable: toNumber(available.estimatedAvailable),
     monthlyCommitted: toNumber(plan.monthlyCommitted),
     activeRecurringCount: recurring.length,
+    unassignedCount: accounts.unassignedCount,
     // Alerts follow each item's own reminder window (up to 60 days), not the 30-day list horizon.
     alerts: filterUpcoming(commitments.filter((c) => isAlertActive(c.status)), Number.POSITIVE_INFINITY),
     upcoming,

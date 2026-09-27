@@ -1,3 +1,5 @@
+import type Decimal from "decimal.js";
+
 import { type MoneyInput, roundMoney, sumMoney, toDecimal, toNumber } from "./money";
 
 export type AccountLedgerInput = {
@@ -92,5 +94,67 @@ export function summarizeAccounts<Kind extends string>(
       total: toNumber(accountsTotal(balances)),
       count: balances.length,
     })),
+  };
+}
+
+/**
+ * Which of the two definitions of "available" the Resumen is entitled to use.
+ * `ACCOUNTS` is the sum of what the accounts actually hold; `ESTIMATE` is the
+ * global cash formula, which needs no accounts to exist.
+ */
+export type AvailableMoneyBasis = "ACCOUNTS" | "ESTIMATE";
+
+export type AvailableMoneyInput = {
+  /** Accounts that are active right now. Zero means their sum means nothing. */
+  activeAccountCount: number;
+  /** Sum of the active accounts' balances (`summarizeAccounts().total`). */
+  accountsTotal: MoneyInput;
+  /** Global cash position: income − expenses − deposits into boxes + withdrawals. */
+  cashPosition: MoneyInput;
+  /** What the month still owes: recurring plus card payments pending. */
+  reserveNeeded: MoneyInput;
+  /** The month-scoped estimate shown while there are no accounts. */
+  monthEstimate: MoneyInput;
+};
+
+export type AvailableMoney = {
+  basis: AvailableMoneyBasis;
+  /** What you have right now. */
+  cashAvailable: Decimal;
+  /** What is left of it once this month's commitments are covered. */
+  estimatedAvailable: Decimal;
+};
+
+/**
+ * Picks the formula the Resumen shows for the money you have available, and
+ * derives both figures from the one it picked so the two cards cannot disagree.
+ *
+ * With no active account the sum of the accounts is zero, and zero is not "you
+ * have no money": it is "nobody has written down where the money is". Showing
+ * it would be an exact number that is false, which is worse than the
+ * approximation the app showed before accounts existed — so the estimate stays
+ * until there is at least one active account to add up. An account that exists
+ * but is deactivated does not count: it is history, not spendable money, and
+ * `summarizeAccounts` already leaves it out of the total.
+ *
+ * It lives here, tested, because it is a business rule about which number the
+ * user is told, not a detail of how a query is written.
+ */
+export function availableMoney(input: AvailableMoneyInput): AvailableMoney {
+  if (input.activeAccountCount < 1) {
+    return {
+      basis: "ESTIMATE",
+      cashAvailable: roundMoney(input.cashPosition),
+      estimatedAvailable: roundMoney(input.monthEstimate),
+    };
+  }
+
+  const total = toDecimal(input.accountsTotal);
+  return {
+    basis: "ACCOUNTS",
+    cashAvailable: roundMoney(total),
+    // Never clamped at zero: owing more this month than you hold is exactly the
+    // thing this card exists to tell you.
+    estimatedAvailable: roundMoney(total.minus(toDecimal(input.reserveNeeded))),
   };
 }

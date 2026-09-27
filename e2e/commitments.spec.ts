@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { login, uniqueName } from "./helpers";
+import { chooseAccount, ensureE2EAccount, login, uniqueName } from "./helpers";
 
 test.describe("Compromisos financieros", () => {
   test.beforeEach(async ({ page }) => {
@@ -9,6 +9,8 @@ test.describe("Compromisos financieros", () => {
 
   test("gasto recurrente: crear, marcar pagado, gasto registrado y fecha avanzada", async ({ page }) => {
     const name = uniqueName("Internet");
+    // Paying it in cash takes the money out of an account, so one has to exist.
+    const account = await ensureE2EAccount(page);
 
     await page.goto("/finanzas/recurrentes");
     await page.getByRole("button", { name: "Nuevo gasto recurrente" }).click();
@@ -29,6 +31,7 @@ test.describe("Compromisos financieros", () => {
     await page.getByRole("menuitem", { name: "Marcar pagado" }).click();
     const paid = page.getByRole("dialog", { name: /Marcar pagado/ });
     await expect(paid.getByLabel("Monto")).toHaveValue("120000");
+    await chooseAccount(page, paid, account);
     await paid.getByRole("button", { name: "Registrar pago" }).click();
     await expect(paid).toBeHidden();
 
@@ -45,6 +48,8 @@ test.describe("Compromisos financieros", () => {
 
   test("tarjeta de crédito: crear, pagar, saldo reducido y gasto registrado", async ({ page }) => {
     const name = uniqueName("Visa Prueba");
+    // The payment is money leaving an account, like any other movement.
+    const account = await ensureE2EAccount(page);
 
     await page.goto("/finanzas/tarjetas");
     await page.getByRole("button", { name: "Nueva tarjeta" }).click();
@@ -64,6 +69,7 @@ test.describe("Compromisos financieros", () => {
     await page.getByRole("menuitem", { name: "Registrar pago" }).click();
     const pay = page.getByRole("dialog", { name: /Registrar pago/ });
     await expect(pay.getByLabel("Monto")).toHaveValue("650000");
+    await chooseAccount(page, pay, account);
     await pay.getByRole("button", { name: "Registrar pago" }).click();
     await expect(pay).toBeHidden();
 

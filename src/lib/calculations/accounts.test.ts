@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   accountBalance,
   accountsTotal,
+  availableMoney,
   cashBoxMirrorAmount,
   summarizeAccounts,
   transactionLedgerAmount,
@@ -158,5 +159,61 @@ describe("transactionLedgerAmount", () => {
       ...transactions.map((t) => transactionLedgerAmount(t.type, t.amount)),
     ].reduce((total, amount) => total.plus(amount), toDecimal(0));
     expect(folded.toFixed(2)).toBe(header.toFixed(2));
+  });
+});
+
+describe("availableMoney", () => {
+  // The numbers below are the shape of a real database: the accounts add up to
+  // something quite different from the global cash formula, so a test that used
+  // the same value for both would pass whichever branch ran.
+  const base = {
+    accountsTotal: 4_200_000,
+    cashPosition: 3_100_000,
+    reserveNeeded: 900_000,
+    monthEstimate: 1_500_000,
+  };
+
+  it("keeps the global estimate while no account exists", () => {
+    const available = availableMoney({ ...base, activeAccountCount: 0 });
+    expect(available.basis).toBe("ESTIMATE");
+    expect(available.cashAvailable.toFixed(2)).toBe("3100000.00");
+    expect(available.estimatedAvailable.toFixed(2)).toBe("1500000.00");
+  });
+
+  it("adds up the accounts as soon as there is one active", () => {
+    const available = availableMoney({ ...base, activeAccountCount: 1 });
+    expect(available.basis).toBe("ACCOUNTS");
+    expect(available.cashAvailable.toFixed(2)).toBe("4200000.00");
+    // 4,200,000 − 900,000 pending this month.
+    expect(available.estimatedAvailable.toFixed(2)).toBe("3300000.00");
+  });
+
+  it("falls back to the estimate when every account was deactivated", () => {
+    // Their sum is zero because inactive accounts are not spendable money, and
+    // telling the user they have nothing would be exact and false.
+    const available = availableMoney({ ...base, activeAccountCount: 0, accountsTotal: 0 });
+    expect(available.basis).toBe("ESTIMATE");
+    expect(available.cashAvailable.toFixed(2)).toBe("3100000.00");
+  });
+
+  it("shows the shortfall instead of hiding it at zero", () => {
+    const available = availableMoney({
+      ...base,
+      activeAccountCount: 2,
+      accountsTotal: 500_000,
+      reserveNeeded: 1_200_000,
+    });
+    expect(available.estimatedAvailable.toFixed(2)).toBe("-700000.00");
+  });
+
+  it("keeps the cents exact", () => {
+    const available = availableMoney({
+      activeAccountCount: 1,
+      accountsTotal: "0.30",
+      cashPosition: 0,
+      reserveNeeded: "0.10",
+      monthEstimate: 0,
+    });
+    expect(available.estimatedAvailable.toFixed(2)).toBe("0.20");
   });
 });

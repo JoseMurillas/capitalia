@@ -1,6 +1,7 @@
 import { ArrowDownRight, ArrowUpRight, CreditCard, PiggyBank, Repeat, ShieldAlert, Wallet } from "lucide-react";
 import type { Metadata } from "next";
 
+import { UnassignedNotice } from "@/components/accounts/unassigned-notice";
 import { FinanceNav } from "@/components/finance/finance-nav";
 import { CommitmentAlerts } from "@/components/finance/overview/commitment-alerts";
 import { CreditCardsMini } from "@/components/finance/overview/credit-cards-mini";
@@ -23,6 +24,9 @@ export default async function FinanceOverviewPage() {
     getAccountOptions(),
   ]);
   const month = formatMonth(monthKey(overview.today));
+  // With no account to add up, both «disponible» cards still show the global
+  // estimate, and they say so instead of pretending to be exact.
+  const fromAccounts = overview.availableBasis === "ACCOUNTS";
 
   return (
     <>
@@ -56,7 +60,11 @@ export default async function FinanceOverviewPage() {
           value={<MoneyDisplay value={overview.estimatedAvailable} tone={overview.estimatedAvailable < 0 ? "negative" : "positive"} />}
           icon={Wallet}
           tone={overview.estimatedAvailable < 0 ? "negative" : "positive"}
-          hint="Ingresos − gastos − compromisos pendientes del mes"
+          hint={
+            fromAccounts
+              ? "Suma de tus cuentas activas menos los compromisos del mes"
+              : "Ingresos − gastos − compromisos pendientes del mes. Crea tus cuentas para que deje de ser una estimación."
+          }
         />
         <StatCard
           title="Reserva necesaria"
@@ -70,7 +78,11 @@ export default async function FinanceOverviewPage() {
           value={<MoneyDisplay value={overview.cashAvailable} tone={overview.cashAvailable < 0 ? "negative" : "neutral"} />}
           icon={PiggyBank}
           tone="positive"
-          hint="Efectivo personal, sin el capital de las cajas"
+          hint={
+            fromAccounts
+              ? "Suma de los saldos de tus cuentas activas"
+              : "Efectivo personal, sin el capital de las cajas. Crea tus cuentas para un saldo exacto."
+          }
         />
         <StatCard
           title="Comprometido al mes"
@@ -80,6 +92,10 @@ export default async function FinanceOverviewPage() {
           hint={`Equivalente mensual de ${overview.activeRecurringCount} recurrentes`}
         />
       </div>
+
+      {/* Only once the cards are reading the accounts: while they show the global
+          estimate, nothing on this screen depends on the movements being assigned. */}
+      {fromAccounts ? <UnassignedNotice count={overview.unassignedCount} /> : null}
 
       <div className="grid gap-6 xl:grid-cols-3">
         <UpcomingCommitments upcoming={overview.upcoming} className="xl:col-span-2" />

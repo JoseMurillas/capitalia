@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { login, uniqueName } from "./helpers";
+import { chooseAccount, ensureE2EAccount, login, uniqueName } from "./helpers";
 
 test.describe("Cajas de capital", () => {
   test("crear caja, depositar, prestar, cobrar, retirar y reasignar", async ({ page }) => {
     await login(page);
+    // Capital that comes back to personal finances lands in an account.
+    const account = await ensureE2EAccount(page);
 
     const boxName = uniqueName("Caja");
     const otherName = uniqueName("Caja B");
@@ -83,6 +85,7 @@ test.describe("Cajas de capital", () => {
     await withdrawal.getByLabel("Monto").fill("200000");
     await withdrawal.getByLabel("Destino del dinero").click();
     await page.getByRole("option", { name: "Finanzas personales" }).click();
+    await chooseAccount(page, withdrawal, account);
     await withdrawal.getByRole("button", { name: "Retirar" }).click();
     await expect(withdrawal).toBeHidden();
     await expect(box.getByText("$2.400.000").first()).toBeVisible();

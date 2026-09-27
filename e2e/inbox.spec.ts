@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
 
-import { login } from "./helpers";
+import { chooseAccount, ensureE2EAccount, login } from "./helpers";
 
 const TAG = Date.now().toString(36);
 
 test.describe("bank inbox", () => {
   test("generates a token in settings, receives bank emails and confirms one as an expense", async ({ page, request }) => {
     await login(page);
+    // Confirming a message writes a movement, and a movement needs an account.
+    const account = await ensureE2EAccount(page);
 
     // The token is created from the app itself, no environment variable needed.
     await page.goto("/configuracion");
@@ -95,6 +97,7 @@ test.describe("bank inbox", () => {
     const confirm = page.getByRole("dialog", { name: "Confirmar movimiento" });
     await expect(confirm.getByLabel("Monto")).toHaveValue("45000");
     await expect(confirm.getByLabel("Fecha")).toHaveValue("2026-09-20");
+    await chooseAccount(page, confirm, account);
     await confirm.getByRole("button", { name: "Guardar movimiento" }).click();
     await expect(confirm).toBeHidden();
     await expect(purchase).toBeHidden();

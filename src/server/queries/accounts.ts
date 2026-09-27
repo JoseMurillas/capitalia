@@ -57,6 +57,11 @@ export type AccountDetailDto = AccountDto & { entries: AccountEntryDto[] };
 
 export type AccountsSummary = {
   total: number;
+  /**
+   * Accounts that are active, which is what `total` adds up. Zero of them means
+   * the total is not the money the user has — see `availableMoney`.
+   */
+  activeCount: number;
   /** Finance movements still without an account; while there are any, totals are partial. */
   unassignedCount: number;
   byKind: { kind: AccountKind; total: number; count: number }[];
@@ -100,7 +105,7 @@ export async function getAccountsSummary(): Promise<AccountsSummary> {
     prisma.transaction.count({ where: { accountId: null } }),
   ]);
   const { total, byKind } = summarizeAccounts(accounts);
-  return { total, unassignedCount, byKind };
+  return { total, activeCount: accounts.filter((account) => account.active).length, unassignedCount, byKind };
 }
 
 /**

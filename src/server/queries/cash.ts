@@ -1,7 +1,16 @@
 import "server-only";
 
-import { cashBoxBalance, outstandingPrincipal, sumMoney, toDecimal, toNumber } from "@/lib/calculations";
+import {
+  availableMoney,
+  cashBoxBalance,
+  outstandingPrincipal,
+  sumMoney,
+  toDecimal,
+  toNumber,
+} from "@/lib/calculations";
 import { prisma } from "@/lib/prisma";
+
+import { getAccountsSummary } from "./accounts";
 
 export type CashPosition = {
   totalIncome: number;
@@ -64,7 +73,19 @@ export async function getCashPosition(): Promise<CashPosition> {
     })),
   );
 
-  const available = totalIncome.minus(totalExpense).minus(depositsFromPersonal).plus(withdrawalsToPersonal);
+  // "Dinero disponible" has to mean the same thing everywhere it is written, so
+  // the choice between the accounts' sum and the global estimate is made once,
+  // here, by the same rule the Resumen uses. Three screens carry that title.
+  const estimate = totalIncome.minus(totalExpense).minus(depositsFromPersonal).plus(withdrawalsToPersonal);
+  const accounts = await getAccountsSummary();
+  const available = availableMoney({
+    activeAccountCount: accounts.activeCount,
+    accountsTotal: accounts.total,
+    cashPosition: estimate,
+    // This figure is what you hold, before anything the month still owes.
+    reserveNeeded: 0,
+    monthEstimate: estimate,
+  }).cashAvailable;
 
   return {
     totalIncome: toNumber(totalIncome),

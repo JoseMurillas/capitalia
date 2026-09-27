@@ -1,7 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeftRight, MoreHorizontal, Pencil, Plus, Power, Scale, Trash2, Wallet } from "lucide-react";
-import Link from "next/link";
+import { ArrowLeftRight, MoreHorizontal, Pencil, Plus, Power, Scale, Trash2, Wallet } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -10,7 +9,6 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { StatCard } from "@/components/shared/stat-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +24,7 @@ import { AccountAdjustDialog } from "./account-adjust-dialog";
 import { AccountCard } from "./account-card";
 import { AccountFormDialog } from "./account-form-dialog";
 import { AccountTransferDialog } from "./account-transfer-dialog";
+import { UnassignedNotice } from "./unassigned-notice";
 
 /** Where the money is most of the time comes first; cash closes the list. */
 const KIND_ORDER = ["DEBIT", "SAVINGS", "WALLET", "CASH"] as const satisfies readonly AccountDto["kind"][];
@@ -111,29 +110,7 @@ export function AccountsList({ accounts, summary }: AccountsListProps) {
           tone="info"
           hint={`${activeCount} ${activeCount === 1 ? "cuenta activa" : "cuentas activas"}`}
         />
-        {summary.unassignedCount > 0 ? (
-          // The card outline is a ring, so the warning tints the ring, not a border.
-          <Card className="justify-center py-4 ring-amber-400/70 dark:ring-amber-500/50">
-            <CardContent className="flex items-start gap-3 px-3 sm:px-4">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
-                <AlertTriangle className="size-4" aria-hidden="true" />
-              </span>
-              <div className="min-w-0 text-sm">
-                <p className="font-medium">
-                  {summary.unassignedCount === 1
-                    ? "Falta 1 movimiento por asignar"
-                    : `Faltan ${summary.unassignedCount} movimientos por asignar`}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Los saldos están incompletos hasta que cada movimiento tenga su cuenta.{" "}
-                  <Link href="/finanzas/movimientos?cuenta=sin-cuenta" className="font-medium underline underline-offset-3 hover:text-foreground">
-                    Asignarlos ahora
-                  </Link>
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
+        <UnassignedNotice count={summary.unassignedCount} />
       </div>
 
       <div className="flex justify-end">

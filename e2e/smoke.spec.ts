@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { login, screenshotPath, uniqueName } from "./helpers";
+import { chooseAccount, ensureE2EAccount, login, screenshotPath, uniqueName } from "./helpers";
 
 test.describe("Capitalia end to end", () => {
   test("redirects anonymous visitors to login and rejects bad credentials", async ({ page }) => {
@@ -116,13 +116,15 @@ test.describe("Capitalia end to end", () => {
     await page.goto("/pagos");
     await expect(page.getByRole("link", { name: personName }).first()).toBeVisible();
 
-    // Personal finance: register an expense.
+    // Personal finance: register an expense out of an account.
+    const account = await ensureE2EAccount(page);
     await page.goto("/finanzas/movimientos");
     await page.getByRole("button", { name: "Gasto" }).click();
     const txDialog = page.getByRole("dialog", { name: "Nuevo movimiento" });
     await txDialog.getByLabel("Monto").fill("45000");
     await txDialog.getByLabel("Categoría").click();
     await page.getByRole("option", { name: "Transporte" }).click();
+    await chooseAccount(page, txDialog, account);
     const description = uniqueName("Taxi");
     await txDialog.getByLabel("Descripción").fill(description);
     await txDialog.getByRole("button", { name: "Registrar" }).click();
