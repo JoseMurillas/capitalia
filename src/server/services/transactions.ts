@@ -9,7 +9,7 @@ import { assertAccountUsable } from "./accounts";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
-lñ
+function toData(input: TransactionInput) {
   return {
     type: input.type,
     category: input.category,
@@ -28,7 +28,7 @@ type CreateTransactionOptions = {
 
 /** `db` lets callers run the insert inside their own transaction. */
 export async function createTransaction(
-  input: TransactionData,
+  input: TransactionInput,
   db: Db = prisma,
   options: CreateTransactionOptions = {},
 ) {
