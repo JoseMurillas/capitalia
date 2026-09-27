@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { deleteCashBoxAction, setCashBoxActiveAction } from "@/server/actions/cash-boxes";
+import type { AccountOption } from "@/server/queries/accounts";
 import type { CashBoxDto, CashBoxOption } from "@/server/queries/cash-boxes";
 
 import { CashBoxCard } from "./cash-box-card";
@@ -37,9 +38,11 @@ import { CashBoxMovementDialog, type CashBoxMovementMode } from "./cash-box-move
 type CashBoxesListProps = {
   boxes: CashBoxDto[];
   options: CashBoxOption[];
+  /** Active accounts, for a deposit or a withdrawal that moves personal money. */
+  accounts: AccountOption[];
 };
 
-export function CashBoxesList({ boxes, options }: CashBoxesListProps) {
+export function CashBoxesList({ boxes, options, accounts }: CashBoxesListProps) {
   const [form, setForm] = useState<{ open: boolean; box: CashBoxDto | null }>({ open: false, box: null });
   const [movement, setMovement] = useState<{ mode: CashBoxMovementMode; box: CashBoxDto } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CashBoxDto | null>(null);
@@ -150,6 +153,7 @@ export function CashBoxesList({ boxes, options }: CashBoxesListProps) {
         mode={movement?.mode ?? "DEPOSIT"}
         box={movement?.box ?? null}
         otherBoxes={options.filter((option) => option.id !== movement?.box.id)}
+        accounts={accounts}
       />
       <ConfirmDialog
         open={Boolean(pendingDelete)}

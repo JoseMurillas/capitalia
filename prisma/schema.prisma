@@ -140,6 +140,22 @@ enum PaymentReminderSkipReason {
   STALE
 }
 
+/// Where personal money sits. A credit card is never one of these: it is debt.
+enum AccountKind {
+  DEBIT
+  SAVINGS
+  CASH
+  WALLET
+}
+
+/// Everything that moves an account other than a finance movement.
+enum AccountMovementKind {
+  OPENING
+  TRANSFER
+  CASH_BOX
+  ADJUSTMENT
+}
+
 // ---------------------------------------------------------------------------
 // Models
 // ---------------------------------------------------------------------------
@@ -291,9 +307,14 @@ model Transaction {
   inboxMessage InboxMessage?
   cardMovement CreditCardMovement?
 
+  /// Where it came from or went to. Null on movements older than accounts.
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
   @@index([transactionDate])
   @@index([type, category])
   @@index([recurringExpenseId])
+  @@index([accountId, transactionDate])
   @@map("transactions")
 }
 
@@ -376,6 +397,9 @@ model RecurringExpense {
   /// Required when paymentMethod is CREDIT_CARD: paying adds to that card's balance instead of cash.
   creditCardId       String?
   creditCard         CreditCard?            @relation(fields: [creditCardId], references: [id], onDelete: Restrict)
+  /// The account it is usually paid from; proposed when marking it paid.
+  accountId          String?
+  account            Account?               @relation(fields: [accountId], references: [id], onDelete: SetNull)
   /// Alert window: days before nextDueDate the app starts warning.
   reminderDays       Int                    @default(3)
   lastPaidDate       DateTime?              @db.Date
@@ -504,10 +528,63 @@ model CashBoxMovement {
   payment          Payment?             @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   createdAt        DateTime             @default(now())
 
+  accountMovement AccountMovement?
+
   @@index([cashBoxId, movementDate])
   @@index([loanId])
   @@index([transferGroupId])
   @@map("cash_box_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Accounts: the places the user's own money sits
+// ---------------------------------------------------------------------------
+
+/// A place the user's own money sits. Its balance is never stored: it is the
+/// sum of its movements plus the finance movements that point at it.
+model Account {
+  id        String      @id @default(cuid(2))
+  name      String      @unique
+  kind      AccountKind
+  /// Bank or provider, free text: "Bancolombia", "Dale".
+  issuer    String?
+  /// Last four digits, when it is a card.
+  last4     String?
+  active    Boolean     @default(true)
+  notes     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  movements    AccountMovement[]
+  transactions Transaction[]
+  recurringExpenses RecurringExpense[]
+
+  @@index([active, name])
+  @@map("accounts")
+}
+
+/// One line of an account's own ledger: everything that moves the account
+/// other than a finance movement. `amount` is signed.
+model AccountMovement {
+  id                String              @id @default(cuid(2))
+  accountId         String
+  account           Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  kind              AccountMovementKind
+  /// Signed: negative takes money out of the account.
+  amount            Decimal             @db.Decimal(15, 2)
+  movementDate      DateTime            @db.Date
+  description       String
+  notes             String?
+  /// The cash box movement this one mirrors, so each ledger can reach the other.
+  cashBoxMovementId String?             @unique
+  cashBoxMovement   CashBoxMovement?    @relation(fields: [cashBoxMovementId], references: [id], onDelete: SetNull)
+  /// Both legs of a transfer between accounts share this value.
+  transferGroupId   String?
+  createdAt         DateTime            @default(now())
+
+  @@index([accountId, movementDate])
+  @@index([transferGroupId])
+  @@map("account_movements")
 }
 
 // ---------------------------------------------------------------------------

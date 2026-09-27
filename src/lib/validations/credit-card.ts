@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  accountIdSchema,
   isoDateSchema,
   moneySchema,
   nonNegativeMoneySchema,
@@ -39,6 +40,12 @@ export type CreditCardStatementInput = z.infer<typeof creditCardStatementSchema>
 export const creditCardPaymentSchema = z.object({
   amount: moneySchema,
   paidDate: isoDateSchema,
+  /**
+   * The account the money leaves. Required, and always on screen: paying a card
+   * is real money going out, so a payment with no account would leave the user
+   * looking at money they no longer have.
+   */
+  accountId: accountIdSchema,
   notes: optionalTrimmed(500),
   /** Move closing/payment dates one month ahead and count one installment on every active plan. */
   advanceCycle: z.boolean(),

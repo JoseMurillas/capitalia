@@ -7,17 +7,19 @@ import { MoneyDisplay } from "@/components/shared/money-display";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { getCreditCardsSummary, listCreditCards } from "@/server/queries/credit-cards";
+import { getAccountOptions } from "@/server/queries/accounts";
 import { countPendingInbox } from "@/server/queries/inbox";
 import { getDefaultReminderDays } from "@/server/services/settings";
 
 export const metadata: Metadata = { title: "Tarjetas de crédito" };
 
 export default async function CreditCardsPage() {
-  const [cards, summary, defaultReminderDays, pendingInbox] = await Promise.all([
+  const [cards, summary, defaultReminderDays, pendingInbox, accounts] = await Promise.all([
     listCreditCards(),
     getCreditCardsSummary(),
     getDefaultReminderDays(),
     countPendingInbox(),
+    getAccountOptions(),
   ]);
 
   return (
@@ -53,7 +55,7 @@ export default async function CreditCardsPage() {
         />
       </div>
 
-      <CreditCardsList cards={cards} defaultReminderDays={defaultReminderDays} />
+      <CreditCardsList cards={cards} defaultReminderDays={defaultReminderDays} accounts={accounts} />
     </>
   );
 }

@@ -12,7 +12,7 @@ import {
 } from "@/lib/validations/credit-card";
 import { parseInput, runAction } from "@/server/action-utils";
 import { requireSession } from "@/server/auth";
-import { revalidateFinance } from "@/server/revalidate";
+import { revalidateAccountDetail, revalidateFinance } from "@/server/revalidate";
 import {
   createCreditCard,
   createInstallmentPlan,
@@ -104,6 +104,7 @@ export async function registerCardPaymentAction(
     if (!parsed.ok) return parsed.result;
     const result = await registerCardPayment(parsedId.data, parsed.data);
     revalidateCard(parsedId.data);
+    revalidateAccountDetail(parsed.data.accountId);
     return ok(result);
   });
 }

@@ -30,6 +30,7 @@ import {
 import type { RecurringStatusFilter } from "@/lib/validations/recurring";
 import { EXPENSE_CATEGORIES } from "@/lib/validations/transaction";
 import { deleteRecurringExpenseAction, setRecurringActiveAction } from "@/server/actions/recurring";
+import type { AccountOption } from "@/server/queries/accounts";
 import type { CreditCardOption } from "@/server/queries/credit-cards";
 import type { RecurringExpenseDto } from "@/server/queries/recurring";
 
@@ -39,6 +40,8 @@ import { RecurringFormDialog } from "./recurring-form-dialog";
 type RecurringListProps = {
   expenses: RecurringExpenseDto[];
   cards: CreditCardOption[];
+  /** Active accounts: paying in cash takes the money out of one. */
+  accounts: AccountOption[];
   defaultReminderDays: number;
   status: RecurringStatusFilter;
   category?: string;
@@ -56,7 +59,7 @@ function methodLabel(e: RecurringExpenseDto): string {
   return RECURRING_PAYMENT_METHOD_LABELS[e.paymentMethod];
 }
 
-export function RecurringList({ expenses, cards, defaultReminderDays, status, category }: RecurringListProps) {
+export function RecurringList({ expenses, cards, accounts, defaultReminderDays, status, category }: RecurringListProps) {
   const { setParams } = useUrlParams();
   const [form, setForm] = useState<{ open: boolean; expense: RecurringExpenseDto | null }>({ open: false, expense: null });
   const [paying, setPaying] = useState<RecurringExpenseDto | null>(null);
@@ -243,7 +246,12 @@ export function RecurringList({ expenses, cards, defaultReminderDays, status, ca
         cards={cards}
         defaultReminderDays={defaultReminderDays}
       />
-      <MarkPaidDialog open={Boolean(paying)} onOpenChange={(open) => !open && setPaying(null)} target={paying} />
+      <MarkPaidDialog
+        open={Boolean(paying)}
+        onOpenChange={(open) => !open && setPaying(null)}
+        target={paying}
+        accounts={accounts}
+      />
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         onOpenChange={(open) => {

@@ -27,6 +27,8 @@ export type RecurringExpenseDto = {
   paymentMethod: RecurringPaymentMethod;
   creditCardId: string | null;
   creditCardName: string | null;
+  /** The account it is usually paid from; «marcar pagado» proposes it. */
+  accountId: string | null;
   reminderDays: number;
   lastPaidDate: IsoDate | null;
   active: boolean;
@@ -73,6 +75,7 @@ function toDto(r: RecurringRow, today: IsoDate): RecurringExpenseDto {
     paymentMethod: r.paymentMethod,
     creditCardId: r.creditCardId,
     creditCardName: r.creditCard?.name ?? null,
+    accountId: r.accountId,
     reminderDays: r.reminderDays,
     lastPaidDate: r.lastPaidDate ? toIsoDate(r.lastPaidDate) : null,
     active: r.active,

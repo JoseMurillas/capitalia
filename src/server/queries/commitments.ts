@@ -33,6 +33,8 @@ export type CommitmentDto =
       paymentMethod: RecurringPaymentMethod;
       creditCardName: string | null;
       isVariable: boolean;
+      /** Usual account, so paying from the alert list proposes it too. */
+      accountId: string | null;
     })
   | (CommitmentBase & { kind: "CARD"; balance: number; suggestedPayment: number });
 
@@ -73,6 +75,7 @@ function toCommitments(recurring: RecurringExpenseDto[], cards: CreditCardDto[])
       paymentMethod: r.paymentMethod,
       creditCardName: r.creditCardName,
       isVariable: r.isVariable,
+      accountId: r.accountId,
     })),
     ...cards.map<CommitmentDto>((c) => ({
       kind: "CARD",

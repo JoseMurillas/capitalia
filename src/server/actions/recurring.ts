@@ -7,7 +7,7 @@ import { idSchema } from "@/lib/validations/common";
 import { markRecurringPaidSchema, recurringExpenseSchema } from "@/lib/validations/recurring";
 import { parseInput, runAction } from "@/server/action-utils";
 import { requireSession } from "@/server/auth";
-import { revalidateFinance } from "@/server/revalidate";
+import { revalidateAccountDetail, revalidateFinance } from "@/server/revalidate";
 import {
   createRecurringExpense,
   deleteRecurringExpense,
@@ -78,6 +78,7 @@ export async function markRecurringPaidAction(
     const result = await markRecurringPaid(parsedId.data, parsed.data);
     revalidateFinance();
     // A card charge changes that card's detail page too. Dynamic-segment patterns must include the route group (see Next's revalidatePath docs).
+    revalidateAccountDetail(parsed.data.accountId);
     revalidatePath("/(dashboard)/finanzas/tarjetas/[id]", "page");
     return ok(result);
   });

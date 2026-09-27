@@ -66,8 +66,9 @@ export async function deleteRecurringExpense(id: string) {
 }
 
 /**
- * Records one payment of a recurring expense: an expense in Finanzas (cash methods) or a
- * charge on the linked card (CREDIT_CARD), then advances the next due date by one period.
+ * Records one payment of a recurring expense: an expense in Finanzas out of the chosen
+ * account (cash methods) or a charge on the linked card (CREDIT_CARD, where no cash moves
+ * until the card itself is paid), then advances the next due date by one period.
  */
 export async function markRecurringPaid(
   id: string,
@@ -78,6 +79,8 @@ export async function markRecurringPaid(
     if (!expense.active) throw new ServiceError("El gasto está pausado; actívalo para registrar el pago");
 
     let chargedToCard: string | null = null;
+    // Set only when real money moved, so a card charge never rewrites the usual account.
+    let paidFromAccountId: string | null = null;
     if (expense.paymentMethod === "CREDIT_CARD") {
       const card = expense.creditCard;
       if (!card) throw new ServiceError("El gasto no tiene una tarjeta asociada; edítalo y elige una");
@@ -98,6 +101,15 @@ export async function markRecurringPaid(
       });
       chargedToCard = card.name;
     } else {
+      // Paying in cash takes money out of a real account, and the dialog shows the
+      // «Cuenta» field for every method but CREDIT_CARD, so it is required here.
+      // `markRecurringPaidSchema` cannot demand it — the card branch has no field
+      // on screen — which is why the rule lives where the branch is known.
+      if (!input.accountId) {
+        const message = "Elige la cuenta de la que salió el dinero";
+        throw new ServiceError(message, { accountId: [message] });
+      }
+      paidFromAccountId = input.accountId;
       await createTransaction(
         {
           type: "EXPENSE",
@@ -105,6 +117,7 @@ export async function markRecurringPaid(
           amount: input.amount,
           description: expense.name,
           transactionDate: input.paidDate,
+          accountId: input.accountId,
           notes: null,
         },
         tx,
@@ -115,7 +128,13 @@ export async function markRecurringPaid(
     const nextDueDate = advanceDueDate(toIsoDate(expense.nextDueDate), expense.frequency, expense.customIntervalDays);
     await tx.recurringExpense.update({
       where: { id },
-      data: { nextDueDate: fromIsoDate(nextDueDate), lastPaidDate: fromIsoDate(input.paidDate) },
+      data: {
+        nextDueDate: fromIsoDate(nextDueDate),
+        lastPaidDate: fromIsoDate(input.paidDate),
+        // The account it was just paid from becomes the usual one, so the next
+        // «marcar pagado» proposes it already chosen.
+        ...(paidFromAccountId ? { accountId: paidFromAccountId } : {}),
+      },
     });
 
     return { nextDueDate, chargedToCard };

@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { deleteCreditCardAction, setCreditCardActiveAction } from "@/server/actions/credit-cards";
+import type { AccountOption } from "@/server/queries/accounts";
 import type { CreditCardDto } from "@/server/queries/credit-cards";
 
 import { CardPaymentDialog } from "./card-payment-dialog";
@@ -26,9 +27,11 @@ import { CreditCardFormDialog } from "./credit-card-form-dialog";
 type CreditCardsListProps = {
   cards: CreditCardDto[];
   defaultReminderDays: number;
+  /** Active accounts: a card payment leaves one of them. */
+  accounts: AccountOption[];
 };
 
-export function CreditCardsList({ cards, defaultReminderDays }: CreditCardsListProps) {
+export function CreditCardsList({ cards, defaultReminderDays, accounts }: CreditCardsListProps) {
   const [form, setForm] = useState<{ open: boolean; card: CreditCardDto | null }>({ open: false, card: null });
   const [statement, setStatement] = useState<CreditCardDto | null>(null);
   const [payment, setPayment] = useState<CreditCardDto | null>(null);
@@ -128,7 +131,12 @@ export function CreditCardsList({ cards, defaultReminderDays }: CreditCardsListP
         defaultReminderDays={defaultReminderDays}
       />
       <CardStatementDialog open={Boolean(statement)} onOpenChange={(open) => !open && setStatement(null)} card={statement} />
-      <CardPaymentDialog open={Boolean(payment)} onOpenChange={(open) => !open && setPayment(null)} card={payment} />
+      <CardPaymentDialog
+        open={Boolean(payment)}
+        onOpenChange={(open) => !open && setPayment(null)}
+        card={payment}
+        accounts={accounts}
+      />
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         onOpenChange={(open) => {

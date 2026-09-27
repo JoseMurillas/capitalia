@@ -42,13 +42,27 @@ export const createCashBoxSchema = cashBoxSchema.extend({
 export type CreateCashBoxInput = z.infer<typeof createCashBoxSchema>;
 
 /** Deposits and withdrawals share a shape; the action decides the direction. */
-export const cashBoxMovementSchema = z.object({
-  amount: moneySchema,
-  movementDate: isoDateSchema,
-  counterparty: z.enum(CASH_BOX_COUNTERPARTIES, { error: "Elige el origen o destino" }),
-  description: optionalTrimmed(200),
-  notes: optionalTrimmed(500),
-});
+export const cashBoxMovementSchema = z
+  .object({
+    amount: moneySchema,
+    movementDate: isoDateSchema,
+    counterparty: z.enum(CASH_BOX_COUNTERPARTIES, { error: "Elige el origen o destino" }),
+    /**
+     * The account the capital moves with. Optional in the shape and required by
+     * the refinement below only for PERSONAL_FINANCES, because external money
+     * never passed through an account of yours: the dialog hides the field for
+     * it, and a required field nobody can see only kills the submit button.
+     */
+    accountId: z
+      .preprocess((value) => (value === "" || value === undefined ? null : value), z.string().trim().min(1).nullable())
+      .optional(),
+    description: optionalTrimmed(200),
+    notes: optionalTrimmed(500),
+  })
+  .refine((m) => m.counterparty !== "PERSONAL_FINANCES" || Boolean(m.accountId), {
+    error: "Elige de qué cuenta sale",
+    path: ["accountId"],
+  });
 
 export type CashBoxMovementInput = z.infer<typeof cashBoxMovementSchema>;
 

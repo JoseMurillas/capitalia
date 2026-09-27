@@ -5,15 +5,17 @@ import { CashBoxesList } from "@/components/cash-boxes/cash-boxes-list";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
+import { getAccountOptions } from "@/server/queries/accounts";
 import { getCashBoxesSummary, listCashBoxes, listCashBoxOptions } from "@/server/queries/cash-boxes";
 
 export const metadata: Metadata = { title: "Cajas" };
 
 export default async function CashBoxesPage() {
-  const [boxes, summary, options] = await Promise.all([
+  const [boxes, summary, options, accounts] = await Promise.all([
     listCashBoxes(),
     getCashBoxesSummary(),
     listCashBoxOptions(),
+    getAccountOptions(),
   ]);
 
   return (
@@ -56,7 +58,7 @@ export default async function CashBoxesPage() {
         />
       </div>
 
-      <CashBoxesList boxes={boxes} options={options} />
+      <CashBoxesList boxes={boxes} options={options} accounts={accounts} />
     </>
   );
 }

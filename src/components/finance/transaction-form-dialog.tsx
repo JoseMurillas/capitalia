@@ -5,6 +5,7 @@ import { useEffect, useTransition } from "react";
 import { Controller, type Resolver, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
+import { AccountField } from "@/components/accounts/account-field";
 import { FormItem } from "@/components/shared/form-item";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +38,7 @@ import {
   transactionSchema,
 } from "@/lib/validations/transaction";
 import { createTransactionAction, updateTransactionAction } from "@/server/actions/transactions";
+import type { AccountOption } from "@/server/queries/accounts";
 import type { TransactionDto } from "@/server/queries/transactions";
 import type { ActionResult } from "@/types";
 
@@ -46,6 +48,7 @@ type TransactionFormValues = {
   amount: number | "";
   description: string;
   transactionDate: string;
+  accountId: string;
   notes: string;
 };
 
@@ -55,15 +58,29 @@ type TransactionFormDialogProps = {
   /** Editing an existing movement; otherwise a new one of `defaultType` is created. */
   transaction?: TransactionDto | null;
   defaultType?: "INCOME" | "EXPENSE";
+  /** Active accounts to choose from; empty means the movement cannot be saved yet. */
+  accounts: AccountOption[];
 };
 
-function toFormValues(transaction?: TransactionDto | null, defaultType: "INCOME" | "EXPENSE" = "EXPENSE"): TransactionFormValues {
+function toFormValues(
+  transaction?: TransactionDto | null,
+  defaultType: "INCOME" | "EXPENSE" = "EXPENSE",
+  accounts: AccountOption[] = [],
+): TransactionFormValues {
   return {
     type: transaction?.type ?? defaultType,
     category: transaction?.category ?? "",
     amount: transaction?.amount ?? "",
     description: transaction?.description ?? "",
     transactionDate: transaction?.transactionDate ?? todayIso(),
+    // An old movement has no account and an inactive one is not on the list, so
+    // both start the field empty and the user picks.
+    accountId:
+      transaction?.accountId && accounts.some((a) => a.id === transaction.accountId)
+        ? transaction.accountId
+        : accounts.length === 1
+          ? accounts[0].id
+          : "",
     notes: transaction?.notes ?? "",
   };
 }
@@ -73,21 +90,23 @@ export function TransactionFormDialog({
   onOpenChange,
   transaction,
   defaultType = "EXPENSE",
+  accounts,
 }: TransactionFormDialogProps) {
   const [isPending, startTransition] = useTransition();
   const isEdit = Boolean(transaction);
+  const hasAccounts = accounts.length > 0;
 
   const form = useForm<TransactionFormValues, unknown, TransactionInput>({
     resolver: zodResolver(transactionSchema) as Resolver<TransactionFormValues, unknown, TransactionInput>,
-    defaultValues: toFormValues(transaction, defaultType),
+    defaultValues: toFormValues(transaction, defaultType, accounts),
   });
 
   const type = useWatch({ control: form.control, name: "type" });
   const categories = categoriesForType(type);
 
   useEffect(() => {
-    if (open) form.reset(toFormValues(transaction, defaultType));
-  }, [open, transaction, defaultType, form]);
+    if (open) form.reset(toFormValues(transaction, defaultType, accounts));
+  }, [open, transaction, defaultType, accounts, form]);
 
   const onSubmit = form.handleSubmit((values) => {
     startTransition(async () => {
@@ -173,6 +192,20 @@ export function TransactionFormDialog({
               />
             </FormItem>
 
+            <Controller
+              control={form.control}
+              name="accountId"
+              render={({ field }) => (
+                <AccountField
+                  id="transaction-account"
+                  accounts={accounts}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.accountId}
+                />
+              )}
+            />
+
             <FormItem label="Descripción" htmlFor="transaction-description" error={errors.description}>
               <Input id="transaction-description" placeholder="Arriendo, salario, mercado…" aria-invalid={Boolean(errors.description)} {...form.register("description")} />
             </FormItem>
@@ -186,7 +219,7 @@ export function TransactionFormDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancelar
           </Button>
-          <Button type="submit" form="transaction-form" disabled={isPending}>
+          <Button type="submit" form="transaction-form" disabled={isPending || !hasAccounts}>
             {isPending ? <Spinner /> : null}
             {isEdit ? "Guardar cambios" : "Registrar"}
           </Button>

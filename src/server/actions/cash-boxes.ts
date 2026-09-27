@@ -33,6 +33,16 @@ function revalidateCashBoxes(id?: string) {
   if (id) revalidatePath(`/prestamos/cajas/${id}`);
 }
 
+/**
+ * Moving capital in or out of a box also writes a row in the account it came
+ * from, so that account's own ledger has to be refreshed too — `revalidateFinance`
+ * knows the list of accounts, not one account's page.
+ */
+function revalidateCashBoxAndAccount(boxId: string, accountId?: string | null) {
+  revalidateCashBoxes(boxId);
+  if (accountId) revalidatePath(`/finanzas/cuentas/${accountId}`);
+}
+
 /** Prisma's unique-constraint code, surfaced under the name field. */
 function isDuplicateName(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
@@ -104,7 +114,7 @@ export async function depositToCashBoxAction(id: unknown, input: unknown): Promi
     const parsed = parseInput(cashBoxMovementSchema, input);
     if (!parsed.ok) return parsed.result;
     await depositToCashBox(parsedId.data, parsed.data);
-    revalidateCashBoxes(parsedId.data);
+    revalidateCashBoxAndAccount(parsedId.data, parsed.data.accountId);
     return ok(undefined);
   });
 }
@@ -117,7 +127,7 @@ export async function withdrawFromCashBoxAction(id: unknown, input: unknown): Pr
     const parsed = parseInput(cashBoxMovementSchema, input);
     if (!parsed.ok) return parsed.result;
     await withdrawFromCashBox(parsedId.data, parsed.data);
-    revalidateCashBoxes(parsedId.data);
+    revalidateCashBoxAndAccount(parsedId.data, parsed.data.accountId);
     return ok(undefined);
   });
 }

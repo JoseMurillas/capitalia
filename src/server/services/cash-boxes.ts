@@ -5,6 +5,7 @@ import type Decimal from "decimal.js";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   cashBoxBalance,
+  cashBoxMirrorAmount,
   type MoneyInput,
   reassignmentNet,
   signedAmount,
@@ -25,6 +26,8 @@ import type {
 } from "@/lib/validations/cash-box";
 
 import { NotFoundError, ServiceError } from "../errors";
+
+import { assertAccountUsable, writeAccountMovement } from "./accounts";
 
 export type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -76,9 +79,12 @@ type MovementData = {
   paymentId?: string | null;
 };
 
-/** Single writer for the ledger: every row goes through here with its sign fixed. */
+/**
+ * Single writer for the ledger: every row goes through here with its sign fixed.
+ * Returns the row it wrote, so an account movement can point back at it.
+ */
 async function writeMovement(db: Db, data: MovementData) {
-  await db.cashBoxMovement.create({
+  return db.cashBoxMovement.create({
     data: {
       cashBoxId: data.cashBoxId,
       kind: data.kind,
@@ -92,6 +98,37 @@ async function writeMovement(db: Db, data: MovementData) {
       loanId: data.loanId ?? null,
       paymentId: data.paymentId ?? null,
     },
+  });
+}
+
+/**
+ * The other half of a deposit or a withdrawal: the personal account the capital
+ * moves with. Money that comes from or goes outside touches no account of
+ * yours, so EXTERNAL writes nothing at all.
+ *
+ * It takes the caller's `db` because both rows must be written inside the same
+ * transaction: a crash that moved the box without moving the account would show
+ * capital you no longer have, which is the whole problem this closes.
+ */
+async function mirrorOnAccount(
+  db: Db,
+  operation: "DEPOSIT" | "WITHDRAWAL",
+  args: { boxName: string; movementId: string; input: CashBoxMovementInput },
+) {
+  const { input } = args;
+  if (input.counterparty !== "PERSONAL_FINANCES" || !input.accountId) return;
+  const account = await assertAccountUsable(db, input.accountId, "accountId");
+  await writeAccountMovement(db, {
+    accountId: account.id,
+    kind: "CASH_BOX",
+    // The sign is never written by hand here: depositing takes the money out of
+    // the account and withdrawing puts it back, and that rule lives tested in
+    // `cashBoxMirrorAmount`.
+    amount: cashBoxMirrorAmount(operation, input.amount),
+    movementDate: input.movementDate,
+    description: operation === "DEPOSIT" ? `Depósito en ${args.boxName}` : `Retiro de ${args.boxName}`,
+    notes: input.notes,
+    cashBoxMovementId: args.movementId,
   });
 }
 
@@ -147,7 +184,7 @@ export async function deleteCashBox(id: string) {
 export async function depositToCashBox(id: string, input: CashBoxMovementInput) {
   await prisma.$transaction(async (tx) => {
     const box = await assertCashBoxUsable(tx, id);
-    await writeMovement(tx, {
+    const movement = await writeMovement(tx, {
       cashBoxId: box.id,
       kind: "DEPOSIT",
       amount: input.amount,
@@ -156,6 +193,7 @@ export async function depositToCashBox(id: string, input: CashBoxMovementInput) 
       notes: input.notes,
       counterparty: input.counterparty,
     });
+    await mirrorOnAccount(tx, "DEPOSIT", { boxName: box.name, movementId: movement.id, input });
   });
 }
 
@@ -163,7 +201,7 @@ export async function withdrawFromCashBox(id: string, input: CashBoxMovementInpu
   await prisma.$transaction(async (tx) => {
     const box = await assertCashBoxUsable(tx, id);
     await assertSufficientBalance(tx, box.id, input.amount, "amount");
-    await writeMovement(tx, {
+    const movement = await writeMovement(tx, {
       cashBoxId: box.id,
       kind: "WITHDRAWAL",
       amount: input.amount,
@@ -172,6 +210,7 @@ export async function withdrawFromCashBox(id: string, input: CashBoxMovementInpu
       notes: input.notes,
       counterparty: input.counterparty,
     });
+    await mirrorOnAccount(tx, "WITHDRAWAL", { boxName: box.name, movementId: movement.id, input });
   });
 }
 

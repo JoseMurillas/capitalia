@@ -11,6 +11,7 @@ import { getEnum } from "@/lib/search-params";
 import { RECURRING_STATUS_FILTERS } from "@/lib/validations/recurring";
 import { EXPENSE_CATEGORIES } from "@/lib/validations/transaction";
 import { listCreditCardOptions } from "@/server/queries/credit-cards";
+import { getAccountOptions } from "@/server/queries/accounts";
 import { countPendingInbox } from "@/server/queries/inbox";
 import { getRecurringSummary, listRecurringExpenses } from "@/server/queries/recurring";
 import { getDefaultReminderDays } from "@/server/services/settings";
@@ -22,12 +23,13 @@ export default async function RecurringPage({ searchParams }: PageProps<"/finanz
   const status = getEnum(params, "status", RECURRING_STATUS_FILTERS) ?? "active";
   const category = getEnum(params, "category", EXPENSE_CATEGORIES);
 
-  const [expenses, summary, cards, defaultReminderDays, pendingInbox] = await Promise.all([
+  const [expenses, summary, cards, defaultReminderDays, pendingInbox, accounts] = await Promise.all([
     listRecurringExpenses({ status, category }),
     getRecurringSummary(),
     listCreditCardOptions(),
     getDefaultReminderDays(),
     countPendingInbox(),
+    getAccountOptions(),
   ]);
 
   return (
@@ -58,7 +60,14 @@ export default async function RecurringPage({ searchParams }: PageProps<"/finanz
         <RecurringByCategory summary={summary} className="xl:col-span-2" />
       </div>
 
-      <RecurringList expenses={expenses} cards={cards} defaultReminderDays={defaultReminderDays} status={status} category={category} />
+      <RecurringList
+        expenses={expenses}
+        cards={cards}
+        accounts={accounts}
+        defaultReminderDays={defaultReminderDays}
+        status={status}
+        category={category}
+      />
     </>
   );
 }

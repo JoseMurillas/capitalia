@@ -5,6 +5,7 @@ import { useEffect, useTransition } from "react";
 import { Controller, type Resolver, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
+import { AccountField } from "@/components/accounts/account-field";
 import { FormItem } from "@/components/shared/form-item";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +37,7 @@ import {
   transactionSchema,
 } from "@/lib/validations/transaction";
 import { confirmInboxMessageAction } from "@/server/actions/inbox";
+import type { AccountOption } from "@/server/queries/accounts";
 import type { InboxMessageDto } from "@/server/queries/inbox";
 
 type FormValues = {
@@ -44,12 +46,15 @@ type FormValues = {
   amount: number | "";
   description: string;
   transactionDate: string;
+  accountId: string;
   notes: string;
 };
 
 type ConfirmInboxDialogProps = {
   message: InboxMessageDto | null;
   onOpenChange: (open: boolean) => void;
+  /** Active accounts: a confirmed message becomes a movement, and one needs a home. */
+  accounts: AccountOption[];
 };
 
 /**
@@ -66,7 +71,7 @@ function toNotes(message: InboxMessageDto, type: "INCOME" | "EXPENSE"): string {
   return parts.join(" · ").slice(0, 200);
 }
 
-function toValues(message: InboxMessageDto | null): FormValues {
+function toValues(message: InboxMessageDto | null, accounts: AccountOption[] = []): FormValues {
   const type = message?.direction === "INCOME" ? "INCOME" : "EXPENSE";
   return {
     type,
@@ -74,23 +79,27 @@ function toValues(message: InboxMessageDto | null): FormValues {
     amount: message?.amount ?? "",
     description: message?.description ?? "",
     transactionDate: message?.suggestedDate ?? "",
+    // The email does not say which account it was, so it is only pre-filled when
+    // there is no choice to make.
+    accountId: accounts.length === 1 ? accounts[0].id : "",
     notes: message ? toNotes(message, type) : "",
   };
 }
 
-export function ConfirmInboxDialog({ message, onOpenChange }: ConfirmInboxDialogProps) {
+export function ConfirmInboxDialog({ message, onOpenChange, accounts }: ConfirmInboxDialogProps) {
   const [isPending, startTransition] = useTransition();
   const open = message !== null;
+  const hasAccounts = accounts.length > 0;
 
   const form = useForm<FormValues, unknown, TransactionInput>({
     resolver: zodResolver(transactionSchema) as Resolver<FormValues, unknown, TransactionInput>,
-    defaultValues: toValues(message),
+    defaultValues: toValues(message, accounts),
   });
   const type = useWatch({ control: form.control, name: "type" });
 
   useEffect(() => {
-    if (message) form.reset(toValues(message));
-  }, [message, form]);
+    if (message) form.reset(toValues(message, accounts));
+  }, [message, accounts, form]);
 
   const onSubmit = form.handleSubmit((values) => {
     if (!message) return;
@@ -163,6 +172,19 @@ export function ConfirmInboxDialog({ message, onOpenChange }: ConfirmInboxDialog
                 )}
               />
             </FormItem>
+            <Controller
+              control={form.control}
+              name="accountId"
+              render={({ field }) => (
+                <AccountField
+                  id="inbox-account"
+                  accounts={accounts}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.accountId}
+                />
+              )}
+            />
             <FormItem label="Descripción" htmlFor="inbox-description" error={errors.description}>
               <Input id="inbox-description" aria-invalid={Boolean(errors.description)} {...form.register("description")} />
             </FormItem>
@@ -175,7 +197,7 @@ export function ConfirmInboxDialog({ message, onOpenChange }: ConfirmInboxDialog
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancelar
           </Button>
-          <Button type="submit" form="confirm-inbox-form" disabled={isPending}>
+          <Button type="submit" form="confirm-inbox-form" disabled={isPending || !hasAccounts}>
             {isPending ? <Spinner /> : null}
             Guardar movimiento
           </Button>

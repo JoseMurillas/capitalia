@@ -7,8 +7,10 @@ import { MoneyDisplay } from "@/components/shared/money-display";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { formatMonth, monthKey } from "@/lib/dates";
-import { getEnum, getIsoDate, getPage } from "@/lib/search-params";
+import { getEnum, getIsoDate, getPage, getString } from "@/lib/search-params";
+import { UNASSIGNED_ACCOUNT } from "@/lib/validations/account";
 import { TRANSACTION_CATEGORIES, TRANSACTION_TYPES } from "@/lib/validations/transaction";
+import { getAccountOptions, getFilterableAccounts } from "@/server/queries/accounts";
 import { countPendingInbox } from "@/server/queries/inbox";
 import { getFinanceSummary, listTransactions } from "@/server/queries/transactions";
 
@@ -21,14 +23,27 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/fin
   const type = getEnum(params, "type", TRANSACTION_TYPES);
   const category = getEnum(params, "category", TRANSACTION_CATEGORIES);
   const page = getPage(params);
+  const requestedAccount = getString(params, "cuenta");
+
+  // The accounts are needed before the list can be queried: an id that is not
+  // one of them would filter everything away and show a selector that does not
+  // match the URL, so an unknown `?cuenta=` is dropped instead.
+  // Filtering accepts a deactivated account — its history is still worth
+  // reading, and its own ledger links here — while the form only offers the
+  // accounts you can still put money into.
+  const [accounts, filterable] = await Promise.all([getAccountOptions(), getFilterableAccounts()]);
+  const account =
+    requestedAccount === UNASSIGNED_ACCOUNT || filterable.some((a) => a.id === requestedAccount)
+      ? requestedAccount
+      : undefined;
 
   const [summary, result, pendingInbox] = await Promise.all([
     getFinanceSummary(),
-    listTransactions({ from, to, type, category, page }),
+    listTransactions({ from, to, type, category, account, page }),
     countPendingInbox(),
   ]);
 
-  const hasFilters = Boolean(from || to || type || category);
+  const hasFilters = Boolean(from || to || type || category || account);
   const month = formatMonth(monthKey(summary.monthLabel));
 
   return (
@@ -62,7 +77,15 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/fin
         </p>
       ) : null}
 
-      <TransactionsList result={result} type={type} category={category} hasFilters={hasFilters} />
+      <TransactionsList
+        result={result}
+        type={type}
+        category={category}
+        account={account}
+        accounts={accounts}
+        filterable={filterable}
+        hasFilters={hasFilters}
+      />
     </>
   );
 }

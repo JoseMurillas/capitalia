@@ -5,6 +5,7 @@ import { CashBoxDetail } from "@/components/cash-boxes/cash-box-detail";
 import { PageHeader } from "@/components/shared/page-header";
 import { CASH_BOX_MOVEMENT_KINDS } from "@/lib/validations/cash-box";
 import { getEnum, getIsoDate } from "@/lib/search-params";
+import { getAccountOptions } from "@/server/queries/accounts";
 import { getCashBoxDetail, listCashBoxOptions } from "@/server/queries/cash-boxes";
 
 export async function generateMetadata({ params }: PageProps<"/prestamos/cajas/[id]">): Promise<Metadata> {
@@ -19,7 +20,11 @@ export default async function CashBoxDetailPage({ params, searchParams }: PagePr
   const from = getIsoDate(query, "from");
   const to = getIsoDate(query, "to");
 
-  const [box, options] = await Promise.all([getCashBoxDetail(id, { kind, from, to }), listCashBoxOptions()]);
+  const [box, options, accounts] = await Promise.all([
+    getCashBoxDetail(id, { kind, from, to }),
+    listCashBoxOptions(),
+    getAccountOptions(),
+  ]);
   if (!box) notFound();
 
   return (
@@ -30,7 +35,13 @@ export default async function CashBoxDetailPage({ params, searchParams }: PagePr
         backHref="/prestamos/cajas"
         backLabel="Cajas"
       />
-      <CashBoxDetail box={box} options={options} kind={kind} hasDateFilter={Boolean(from || to)} />
+      <CashBoxDetail
+        box={box}
+        options={options}
+        accounts={accounts}
+        kind={kind}
+        hasDateFilter={Boolean(from || to)}
+      />
     </>
   );
 }

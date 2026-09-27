@@ -1,4 +1,6 @@
 import type {
+  AccountKind,
+  AccountMovementKind,
   CashBoxCounterparty,
   CashBoxMovementKind,
   CreditCardMovementKind,
@@ -122,6 +124,20 @@ export const CASH_BOX_MOVEMENT_KIND_LABELS: Record<CashBoxMovementKind, string> 
 export const CASH_BOX_COUNTERPARTY_LABELS: Record<CashBoxCounterparty, string> = {
   PERSONAL_FINANCES: "Finanzas personales",
   EXTERNAL: "Externo",
+};
+
+export const ACCOUNT_KIND_LABELS: Record<AccountKind, string> = {
+  DEBIT: "Tarjeta débito",
+  SAVINGS: "Ahorros",
+  CASH: "Efectivo",
+  WALLET: "Billetera digital",
+};
+
+export const ACCOUNT_MOVEMENT_KIND_LABELS: Record<AccountMovementKind, string> = {
+  OPENING: "Saldo inicial",
+  TRANSFER: "Transferencia",
+  CASH_BOX: "Caja de capital",
+  ADJUSTMENT: "Ajuste",
 };
 
 export const REMINDER_KIND_LABELS: Record<PaymentReminderKind, string> = {

@@ -5,6 +5,7 @@ import { useEffect, useTransition } from "react";
 import { Controller, type Resolver, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
+import { AccountField } from "@/components/accounts/account-field";
 import { FormItem } from "@/components/shared/form-item";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import { formatMoney } from "@/lib/format";
 import { handleActionFailure } from "@/lib/forms";
 import { type CreditCardPaymentInput, creditCardPaymentSchema } from "@/lib/validations/credit-card";
 import { registerCardPaymentAction } from "@/server/actions/credit-cards";
+import type { AccountOption } from "@/server/queries/accounts";
 
 /** The minimum a caller must know about a card to pay it (list, detail and overview all qualify). */
 export type CardPaymentTarget = { id: string; name: string; balance: number; suggestedPayment: number };
@@ -33,6 +35,7 @@ export type CardPaymentTarget = { id: string; name: string; balance: number; sug
 type PaymentFormValues = {
   amount: number | "";
   paidDate: string;
+  accountId: string;
   notes: string;
   advanceCycle: boolean;
 };
@@ -41,24 +44,35 @@ type CardPaymentDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   card: CardPaymentTarget | null;
+  /** Active accounts: the payment leaves one of them. */
+  accounts: AccountOption[];
 };
 
-function toFormValues(card: CardPaymentTarget | null): PaymentFormValues {
+function toFormValues(card: CardPaymentTarget | null, accounts: AccountOption[] = []): PaymentFormValues {
   const suggested = card ? (card.suggestedPayment > 0 ? card.suggestedPayment : card.balance) : "";
-  return { amount: suggested, paidDate: todayIso(), notes: "", advanceCycle: true };
+  return {
+    amount: suggested,
+    paidDate: todayIso(),
+    // Nothing on the card says where the money comes from, so it is only
+    // pre-filled when there is no choice to make.
+    accountId: accounts.length === 1 ? accounts[0].id : "",
+    notes: "",
+    advanceCycle: true,
+  };
 }
 
-export function CardPaymentDialog({ open, onOpenChange, card }: CardPaymentDialogProps) {
+export function CardPaymentDialog({ open, onOpenChange, card, accounts }: CardPaymentDialogProps) {
   const [isPending, startTransition] = useTransition();
+  const hasAccounts = accounts.length > 0;
 
   const form = useForm<PaymentFormValues, unknown, CreditCardPaymentInput>({
     resolver: zodResolver(creditCardPaymentSchema) as Resolver<PaymentFormValues, unknown, CreditCardPaymentInput>,
-    defaultValues: toFormValues(card),
+    defaultValues: toFormValues(card, accounts),
   });
 
   useEffect(() => {
-    if (open) form.reset(toFormValues(card));
-  }, [open, card, form]);
+    if (open) form.reset(toFormValues(card, accounts));
+  }, [open, card, accounts, form]);
 
   const amount = Number(useWatch({ control: form.control, name: "amount" }) || 0);
   const exceedsBalance = card !== null && amount > card.balance;
@@ -81,7 +95,8 @@ export function CardPaymentDialog({ open, onOpenChange, card }: CardPaymentDialo
         <DialogHeader>
           <DialogTitle>Registrar pago{card ? ` · ${card.name}` : ""}</DialogTitle>
           <DialogDescription>
-            Se registrará un gasto «Pago tarjeta {card?.name ?? ""}» en Finanzas y el saldo de la tarjeta bajará.
+            Se registrará un gasto «Pago tarjeta {card?.name ?? ""}» en Finanzas, saldrá de la cuenta que elijas y el
+            saldo de la tarjeta bajará.
           </DialogDescription>
         </DialogHeader>
         <form id="card-payment-form" onSubmit={onSubmit} noValidate>
@@ -113,6 +128,20 @@ export function CardPaymentDialog({ open, onOpenChange, card }: CardPaymentDialo
 
             <Controller
               control={form.control}
+              name="accountId"
+              render={({ field }) => (
+                <AccountField
+                  id="card-payment-account"
+                  accounts={accounts}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.accountId}
+                />
+              )}
+            />
+
+            <Controller
+              control={form.control}
               name="advanceCycle"
               render={({ field }) => (
                 <Field orientation="horizontal">
@@ -133,7 +162,7 @@ export function CardPaymentDialog({ open, onOpenChange, card }: CardPaymentDialo
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancelar
           </Button>
-          <Button type="submit" form="card-payment-form" disabled={isPending}>
+          <Button type="submit" form="card-payment-form" disabled={isPending || !hasAccounts}>
             {isPending ? <Spinner /> : null}
             Registrar pago
           </Button>

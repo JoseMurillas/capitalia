@@ -11,10 +11,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { formatDate } from "@/lib/dates";
 import { dueInLabel } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import type { AccountOption } from "@/server/queries/accounts";
 import type { CommitmentDto } from "@/server/queries/commitments";
 
+type CommitmentAlertsProps = {
+  alerts: CommitmentDto[];
+  /** Active accounts, for the two payment dialogs the Pagar shortcut opens. */
+  accounts: AccountOption[];
+};
+
 /** "🔔 Próximo pago: Internet · Vence en 3 días · $120.000" with a Pagar shortcut. */
-export function CommitmentAlerts({ alerts }: { alerts: CommitmentDto[] }) {
+export function CommitmentAlerts({ alerts, accounts }: CommitmentAlertsProps) {
   const [paying, setPaying] = useState<MarkPaidTarget | null>(null);
   const [payingCard, setPayingCard] = useState<CardPaymentTarget | null>(null);
 
@@ -23,7 +30,9 @@ export function CommitmentAlerts({ alerts }: { alerts: CommitmentDto[] }) {
   const overdue = alerts.filter((a) => a.status === "OVERDUE").length;
 
   return (
-    <Card className={cn("border-amber-300/70 dark:border-amber-700/60", overdue > 0 && "border-red-300/70 dark:border-red-800/60")}>
+    // Card outlines itself with a ring, not a border, and Tailwind's preflight
+    // leaves every border at zero width — a `border-amber-*` here paints nothing.
+    <Card className={cn("ring-amber-400/70", overdue > 0 && "ring-red-400/80")}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <BellRing className="size-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
@@ -74,8 +83,18 @@ export function CommitmentAlerts({ alerts }: { alerts: CommitmentDto[] }) {
         </ul>
       </CardContent>
 
-      <MarkPaidDialog open={Boolean(paying)} onOpenChange={(open) => !open && setPaying(null)} target={paying} />
-      <CardPaymentDialog open={Boolean(payingCard)} onOpenChange={(open) => !open && setPayingCard(null)} card={payingCard} />
+      <MarkPaidDialog
+        open={Boolean(paying)}
+        onOpenChange={(open) => !open && setPaying(null)}
+        target={paying}
+        accounts={accounts}
+      />
+      <CardPaymentDialog
+        open={Boolean(payingCard)}
+        onOpenChange={(open) => !open && setPayingCard(null)}
+        card={payingCard}
+        accounts={accounts}
+      />
     </Card>
   );
 }

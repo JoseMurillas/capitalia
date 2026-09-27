@@ -1,7 +1,7 @@
 "use client";
 
 import { MoreHorizontal, Pencil, Plus, Trash2, Wallet } from "lucide-react";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -31,9 +31,13 @@ import {
 } from "@/components/ui/select";
 import { useUrlParams } from "@/hooks/use-url-params";
 import { formatDate } from "@/lib/dates";
-import { TRANSACTION_CATEGORY_LABELS } from "@/lib/labels";
+import { ACCOUNT_KIND_LABELS, TRANSACTION_CATEGORY_LABELS } from "@/lib/labels";
+import { cn } from "@/lib/utils";
+import { UNASSIGNED_ACCOUNT } from "@/lib/validations/account";
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/lib/validations/transaction";
+import { assignTransactionAccountAction } from "@/server/actions/accounts";
 import { deleteTransactionAction } from "@/server/actions/transactions";
+import type { AccountOption } from "@/server/queries/accounts";
 import type { TransactionDto, TransactionListTotals } from "@/server/queries/transactions";
 import type { PaginatedResult } from "@/types";
 
@@ -43,12 +47,81 @@ type TransactionsListProps = {
   result: PaginatedResult<TransactionDto> & { totals: TransactionListTotals };
   type?: "INCOME" | "EXPENSE";
   category?: string;
+  /** Current `?cuenta=` filter: an account id, `UNASSIGNED_ACCOUNT`, or nothing. */
+  account?: string;
+  /** Accounts the form can assign: only the ones still in use. */
+  accounts: AccountOption[];
+  /** Accounts the filter may name, deactivated ones included. */
+  filterable: AccountOption[];
   hasFilters: boolean;
 };
 
 const ALL = "all";
 
-export function TransactionsList({ result, type, category, hasFilters }: TransactionsListProps) {
+/**
+ * The account cell of a row that has none: picking here assigns it without
+ * opening the form, which is how the 67 movements written before accounts
+ * existed get sorted out one tap at a time.
+ */
+function AssignAccountCell({
+  transaction,
+  accounts,
+  className,
+}: {
+  transaction: TransactionDto;
+  accounts: AccountOption[];
+  className?: string;
+}) {
+  const [isPending, startTransition] = useTransition();
+
+  // Nothing to assign to yet: the row still says so, the accounts screen is
+  // where it gets fixed.
+  if (accounts.length === 0) {
+    return <span className="text-amber-600 dark:text-amber-400">Sin cuenta</span>;
+  }
+
+  const assign = (accountId: string) =>
+    startTransition(async () => {
+      const response = await assignTransactionAccountAction({ transactionId: transaction.id, accountId });
+      if (!response.success) {
+        toast.error(response.error);
+        return;
+      }
+      toast.success("Movimiento asignado");
+    });
+
+  return (
+    <Select value="" onValueChange={assign} disabled={isPending}>
+      <SelectTrigger
+        size="sm"
+        className={cn(
+          "w-full min-w-32 border-amber-300 text-amber-700 dark:border-amber-800/80 dark:text-amber-400",
+          className,
+        )}
+        aria-label={`Asignar cuenta a ${transaction.description}`}
+      >
+        <SelectValue placeholder={isPending ? "Asignando…" : "Sin cuenta"} />
+      </SelectTrigger>
+      <SelectContent>
+        {accounts.map((option) => (
+          <SelectItem key={option.id} value={option.id}>
+            {option.name} — {ACCOUNT_KIND_LABELS[option.kind]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+export function TransactionsList({
+  result,
+  type,
+  category,
+  account,
+  accounts,
+  filterable,
+  hasFilters,
+}: TransactionsListProps) {
   const { setParams } = useUrlParams();
   const [dialog, setDialog] = useState<{ open: boolean; type: "INCOME" | "EXPENSE"; transaction: TransactionDto | null }>({
     open: false,
@@ -92,6 +165,19 @@ export function TransactionsList({ result, type, category, hasFilters }: Transac
           {t.notes ? <p className="truncate text-xs text-muted-foreground">{t.notes}</p> : null}
         </div>
       ),
+    },
+    {
+      // Never hidden: the assign selector below is the only way an old movement
+      // gets a cuenta without opening the form, so it has to be reachable
+      // wherever the table renders. The table already scrolls sideways.
+      key: "account",
+      header: "Cuenta",
+      cell: (t) =>
+        t.accountName ? (
+          <span className="whitespace-nowrap">{t.accountName}</span>
+        ) : (
+          <AssignAccountCell transaction={t} accounts={accounts} />
+        ),
     },
     {
       key: "amount",
@@ -185,6 +271,30 @@ export function TransactionsList({ result, type, category, hasFilters }: Transac
             ) : null}
           </SelectContent>
         </Select>
+        <Select
+          value={account ?? ALL}
+          onValueChange={(value) => setParams({ cuenta: value === ALL ? null : value }, { resetPage: true })}
+        >
+          <SelectTrigger className="w-full sm:w-44" aria-label="Filtrar por cuenta">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todas las cuentas</SelectItem>
+            <SelectItem value={UNASSIGNED_ACCOUNT}>Sin cuenta</SelectItem>
+            {/* Filtering offers every account, deactivated ones included: their
+                history is still readable and their own ledger links here. */}
+            {filterable.length > 0 ? (
+              <SelectGroup>
+                <SelectLabel>Cuentas</SelectLabel>
+                {filterable.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ) : null}
+          </SelectContent>
+        </Select>
         <div className="flex gap-2 lg:ml-auto">
           <Button variant="outline" onClick={() => openCreate("INCOME")}>
             <Plus aria-hidden="true" />
@@ -213,16 +323,34 @@ export function TransactionsList({ result, type, category, hasFilters }: Transac
               />
             }
             badge={<TransactionTypeBadge type={t.type} />}
-            meta={t.notes ? [{ label: "Notas", value: t.notes }] : undefined}
+            meta={[
+              {
+                label: "Cuenta",
+                value: t.accountName ?? (
+                  <AssignAccountCell transaction={t} accounts={accounts} className="ml-auto w-auto min-w-0" />
+                ),
+              },
+              ...(t.notes ? [{ label: "Notas", value: t.notes }] : []),
+            ]}
             actions={renderActions(t)}
           />
         )}
         emptyState={
           <EmptyState
             icon={Wallet}
-            title={hasFilters ? "Sin movimientos en este filtro" : "Aún no hay movimientos"}
+            title={
+              account === UNASSIGNED_ACCOUNT
+                ? "Todos los movimientos tienen cuenta"
+                : hasFilters
+                  ? "Sin movimientos en este filtro"
+                  : "Aún no hay movimientos"
+            }
             description={
-              hasFilters ? "Ajusta las fechas o la categoría." : "Registra tus ingresos y gastos para conocer tu flujo de caja."
+              account === UNASSIGNED_ACCOUNT
+                ? "Nada pendiente por asignar: los saldos de tus cuentas están completos."
+                : hasFilters
+                  ? "Ajusta las fechas, la categoría o la cuenta."
+                  : "Registra tus ingresos y gastos para conocer tu flujo de caja."
             }
             action={
               hasFilters ? null : (
@@ -248,6 +376,7 @@ export function TransactionsList({ result, type, category, hasFilters }: Transac
         onOpenChange={(open) => setDialog((current) => ({ ...current, open }))}
         transaction={dialog.transaction}
         defaultType={dialog.type}
+        accounts={accounts}
       />
 
       <ConfirmDialog

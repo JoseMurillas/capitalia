@@ -6,7 +6,7 @@ import { idSchema } from "@/lib/validations/common";
 import { confirmInboxSchema } from "@/lib/validations/inbox";
 import { parseInput, runAction } from "@/server/action-utils";
 import { requireSession } from "@/server/auth";
-import { revalidateFinance } from "@/server/revalidate";
+import { revalidateAccountDetail, revalidateFinance } from "@/server/revalidate";
 import {
   confirmInboxMessage,
   discardInboxMessage,
@@ -27,6 +27,7 @@ export async function confirmInboxMessageAction(input: unknown): Promise<ActionR
     if (!parsed.ok) return parsed.result;
     const transaction = await confirmInboxMessage(parsed.data.messageId, parsed.data.transaction);
     revalidateInbox();
+    revalidateAccountDetail(parsed.data.transaction.accountId);
     return ok({ transactionId: transaction.id });
   });
 }

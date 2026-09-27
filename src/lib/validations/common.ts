@@ -50,6 +50,9 @@ export const reminderDaysSettingsSchema = z.object({ days: reminderDaysSchema })
 
 export const idSchema = z.string().trim().min(1, { error: "Identificador requerido" });
 
+/** An account picked in a form: the message is read by the user, not by a developer. */
+export const accountIdSchema = z.string().trim().min(1, { error: "Elige la cuenta" });
+
 /**
  * Optional free text. Accepts undefined/null too because forms re-submit the
  * already-transformed value (null) to the server, which validates again.

@@ -17,6 +17,7 @@ import { useUrlParams } from "@/hooks/use-url-params";
 import { formatDate } from "@/lib/dates";
 import { CASH_BOX_COUNTERPARTY_LABELS, CASH_BOX_MOVEMENT_KIND_LABELS } from "@/lib/labels";
 import { CASH_BOX_MOVEMENT_KINDS, type CashBoxMovementKindValue } from "@/lib/validations/cash-box";
+import type { AccountOption } from "@/server/queries/accounts";
 import type { CashBoxDetailDto, CashBoxLoanDto, CashBoxMovementDto, CashBoxOption } from "@/server/queries/cash-boxes";
 
 import { CashBoxCard } from "./cash-box-card";
@@ -25,6 +26,8 @@ import { CashBoxMovementDialog, type CashBoxMovementMode } from "./cash-box-move
 type CashBoxDetailProps = {
   box: CashBoxDetailDto;
   options: CashBoxOption[];
+  /** Active accounts, for a deposit or a withdrawal that moves personal money. */
+  accounts: AccountOption[];
   /** Movement kind the history is filtered by, from the URL. */
   kind?: CashBoxMovementKindValue;
   hasDateFilter: boolean;
@@ -35,11 +38,14 @@ const ALL_KINDS = "all";
 /** Where the movement came from or went, in one readable cell. */
 function movementContext(movement: CashBoxMovementDto): string {
   if (movement.relatedCashBoxName) return movement.relatedCashBoxName;
+  // Naming the account is more useful than "Finanzas personales": it says which
+  // pocket the capital actually left.
+  if (movement.accountName) return movement.accountName;
   if (movement.counterparty) return CASH_BOX_COUNTERPARTY_LABELS[movement.counterparty];
   return "—";
 }
 
-export function CashBoxDetail({ box, options, kind, hasDateFilter }: CashBoxDetailProps) {
+export function CashBoxDetail({ box, options, accounts, kind, hasDateFilter }: CashBoxDetailProps) {
   const [mode, setMode] = useState<CashBoxMovementMode | null>(null);
   const { setParams } = useUrlParams();
   const isFiltered = Boolean(kind) || hasDateFilter;
@@ -238,6 +244,7 @@ export function CashBoxDetail({ box, options, kind, hasDateFilter }: CashBoxDeta
         mode={mode ?? "DEPOSIT"}
         box={box}
         otherBoxes={options.filter((option) => option.id !== box.id)}
+        accounts={accounts}
       />
     </div>
   );

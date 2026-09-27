@@ -119,8 +119,9 @@ export async function deleteCreditCard(id: string) {
 }
 
 /**
- * Pays the card from cash: creates the expense in Finanzas, logs the movement,
- * lowers the balance and (optionally) moves the cycle one month ahead.
+ * Pays the card from one of the user's accounts: creates the expense in Finanzas
+ * against that account, logs the movement, lowers the balance and (optionally)
+ * moves the cycle one month ahead.
  */
 export async function registerCardPayment(id: string, input: CreditCardPaymentInput) {
   return prisma.$transaction(async (tx) => {
@@ -135,6 +136,9 @@ export async function registerCardPayment(id: string, input: CreditCardPaymentIn
         amount: input.amount,
         description,
         transactionDate: input.paidDate,
+        // The dialog asks «¿desde qué cuenta?»; `createTransaction` checks the
+        // account is still usable inside this same transaction.
+        accountId: input.accountId,
         notes: input.notes,
       },
       tx,

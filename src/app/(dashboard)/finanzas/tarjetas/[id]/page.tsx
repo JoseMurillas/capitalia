@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { CreditCardDetail } from "@/components/finance/cards/credit-card-detail";
 import { PageHeader } from "@/components/shared/page-header";
+import { getAccountOptions } from "@/server/queries/accounts";
 import { getCreditCardDetail } from "@/server/queries/credit-cards";
 import { getDefaultReminderDays } from "@/server/services/settings";
 
@@ -10,7 +11,11 @@ export const metadata: Metadata = { title: "Tarjeta de crédito" };
 
 export default async function CreditCardDetailPage({ params }: PageProps<"/finanzas/tarjetas/[id]">) {
   const { id } = await params;
-  const [card, defaultReminderDays] = await Promise.all([getCreditCardDetail(id), getDefaultReminderDays()]);
+  const [card, defaultReminderDays, accounts] = await Promise.all([
+    getCreditCardDetail(id),
+    getDefaultReminderDays(),
+    getAccountOptions(),
+  ]);
   if (!card) notFound();
 
   return (
@@ -21,7 +26,7 @@ export default async function CreditCardDetailPage({ params }: PageProps<"/finan
         backHref="/finanzas/tarjetas"
         backLabel="Tarjetas"
       />
-      <CreditCardDetail card={card} defaultReminderDays={defaultReminderDays} />
+      <CreditCardDetail card={card} defaultReminderDays={defaultReminderDays} accounts={accounts} />
     </>
   );
 }

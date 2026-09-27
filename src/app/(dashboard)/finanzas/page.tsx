@@ -10,13 +10,18 @@ import { MoneyDisplay } from "@/components/shared/money-display";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { formatMonth, monthKey } from "@/lib/dates";
+import { getAccountOptions } from "@/server/queries/accounts";
 import { getCommitmentsOverview } from "@/server/queries/commitments";
 import { countPendingInbox } from "@/server/queries/inbox";
 
 export const metadata: Metadata = { title: "Finanzas" };
 
 export default async function FinanceOverviewPage() {
-  const [overview, pendingInbox] = await Promise.all([getCommitmentsOverview(), countPendingInbox()]);
+  const [overview, pendingInbox, accounts] = await Promise.all([
+    getCommitmentsOverview(),
+    countPendingInbox(),
+    getAccountOptions(),
+  ]);
   const month = formatMonth(monthKey(overview.today));
 
   return (
@@ -27,7 +32,7 @@ export default async function FinanceOverviewPage() {
       />
       <FinanceNav pendingInbox={pendingInbox} />
 
-      <CommitmentAlerts alerts={overview.alerts} />
+      <CommitmentAlerts alerts={overview.alerts} accounts={accounts} />
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatCard title={`Ingresos de ${month}`} value={<MoneyDisplay value={overview.monthIncome} />} icon={ArrowUpRight} tone="positive" />

@@ -2,9 +2,10 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useTransition } from "react";
-import { Controller, type Resolver, useForm } from "react-hook-form";
+import { Controller, type Resolver, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
+import { AccountField } from "@/components/accounts/account-field";
 import { FormItem } from "@/components/shared/form-item";
 import { MoneyDisplay } from "@/components/shared/money-display";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ import {
   transferBetweenCashBoxesAction,
   withdrawFromCashBoxAction,
 } from "@/server/actions/cash-boxes";
+import type { AccountOption } from "@/server/queries/accounts";
 import type { CashBoxDto, CashBoxOption } from "@/server/queries/cash-boxes";
 import type { ActionResult } from "@/types";
 
@@ -46,6 +48,7 @@ type MovementFormValues = {
   amount: number | "";
   movementDate: string;
   counterparty: (typeof CASH_BOX_COUNTERPARTIES)[number];
+  accountId: string;
   toCashBoxId: string;
   description: string;
   notes: string;
@@ -58,6 +61,8 @@ type CashBoxMovementDialogProps = {
   box: CashBoxDto | null;
   /** Active boxes other than this one, for transfers. */
   otherBoxes: CashBoxOption[];
+  /** Active accounts; only the personal-finances branch moves money in one. */
+  accounts: AccountOption[];
 };
 
 const COPY: Record<CashBoxMovementMode, { title: string; description: string; submit: string; success: string }> = {
@@ -93,29 +98,39 @@ function schemaFor(mode: CashBoxMovementMode) {
   return cashBoxMovementSchema;
 }
 
-function toFormValues(mode: CashBoxMovementMode): MovementFormValues {
+function toFormValues(mode: CashBoxMovementMode, accounts: AccountOption[]): MovementFormValues {
   return {
     amount: "",
     movementDate: todayIso(),
     counterparty: mode === "WITHDRAWAL" ? "PERSONAL_FINANCES" : "EXTERNAL",
+    // With a single account there is nothing to choose; anything else is the
+    // user's call and stays empty on purpose.
+    accountId: accounts.length === 1 ? accounts[0].id : "",
     toCashBoxId: "",
     description: "",
     notes: "",
   };
 }
 
-export function CashBoxMovementDialog({ open, onOpenChange, mode, box, otherBoxes }: CashBoxMovementDialogProps) {
+export function CashBoxMovementDialog({
+  open,
+  onOpenChange,
+  mode,
+  box,
+  otherBoxes,
+  accounts,
+}: CashBoxMovementDialogProps) {
   const [isPending, startTransition] = useTransition();
   const copy = COPY[mode];
 
   const form = useForm<MovementFormValues>({
     resolver: zodResolver(schemaFor(mode)) as unknown as Resolver<MovementFormValues>,
-    defaultValues: toFormValues(mode),
+    defaultValues: toFormValues(mode, accounts),
   });
 
   useEffect(() => {
-    if (open) form.reset(toFormValues(mode));
-  }, [open, mode, form]);
+    if (open) form.reset(toFormValues(mode, accounts));
+  }, [open, mode, accounts, form]);
 
   const onSubmit = form.handleSubmit((values) => {
     if (!box) return;
@@ -137,6 +152,12 @@ export function CashBoxMovementDialog({ open, onOpenChange, mode, box, otherBoxe
   });
 
   const { errors } = form.formState;
+  const counterparty = useWatch({ control: form.control, name: "counterparty" });
+  const isCapitalMove = mode === "DEPOSIT" || mode === "WITHDRAWAL";
+  // The «Cuenta» field appears and disappears with the chosen counterparty, and
+  // the schema asks for it in exactly that case: a field that is validated has
+  // to be on screen, or Guardar dies with nothing explaining why.
+  const needsAccount = isCapitalMove && counterparty === "PERSONAL_FINANCES";
 
   return (
     <Dialog open={open} onOpenChange={isPending ? undefined : onOpenChange}>
@@ -178,12 +199,12 @@ export function CashBoxMovementDialog({ open, onOpenChange, mode, box, otherBoxe
               </FormItem>
             </div>
 
-            {mode === "DEPOSIT" || mode === "WITHDRAWAL" ? (
+            {isCapitalMove ? (
               <FormItem
                 label={mode === "DEPOSIT" ? "Origen del dinero" : "Destino del dinero"}
                 htmlFor="movement-counterparty"
                 error={errors.counterparty}
-                description="Si eliges finanzas personales, tu efectivo personal se ajusta sin crear un movimiento en la tabla de Movimientos."
+                description="Si eliges finanzas personales, el movimiento queda también en el historial de la cuenta que indiques."
               >
                 <Controller
                   control={form.control}
@@ -204,6 +225,22 @@ export function CashBoxMovementDialog({ open, onOpenChange, mode, box, otherBoxe
                   )}
                 />
               </FormItem>
+            ) : null}
+
+            {needsAccount ? (
+              <Controller
+                control={form.control}
+                name="accountId"
+                render={({ field }) => (
+                  <AccountField
+                    id="movement-account"
+                    accounts={accounts}
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.accountId}
+                  />
+                )}
+              />
             ) : null}
 
             {mode === "TRANSFER" ? (
@@ -258,7 +295,12 @@ export function CashBoxMovementDialog({ open, onOpenChange, mode, box, otherBoxe
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             Cancelar
           </Button>
-          <Button type="submit" form="cash-box-movement-form" disabled={isPending}>
+          {/* Only the branch that needs an account waits for one to exist. */}
+          <Button
+            type="submit"
+            form="cash-box-movement-form"
+            disabled={isPending || (needsAccount && accounts.length === 0)}
+          >
             {isPending ? <Spinner /> : null}
             {copy.submit}
           </Button>

@@ -15,6 +15,7 @@ import { useUrlParams } from "@/hooks/use-url-params";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { TRANSACTION_CATEGORY_LABELS } from "@/lib/labels";
 import { discardInboxMessageAction, reprocessInboxAction, restoreInboxMessageAction } from "@/server/actions/inbox";
+import type { AccountOption } from "@/server/queries/accounts";
 import type { InboxMessageDto } from "@/server/queries/inbox";
 import type { PaginatedResult } from "@/types";
 
@@ -24,6 +25,8 @@ type InboxListProps = {
   result: PaginatedResult<InboxMessageDto>;
   status: "PENDING" | "CONFIRMED" | "DISCARDED";
   query?: string;
+  /** Passed straight to the confirm dialog, where the movement picks its account. */
+  accounts: AccountOption[];
 };
 
 const TABS = [
@@ -32,7 +35,7 @@ const TABS = [
   { value: "DISCARDED", label: "Descartados" },
 ] as const;
 
-export function InboxList({ result, status, query }: InboxListProps) {
+export function InboxList({ result, status, query, accounts }: InboxListProps) {
   const messages = result.items;
   const { setParams } = useUrlParams();
   const [confirming, setConfirming] = useState<InboxMessageDto | null>(null);
@@ -169,7 +172,11 @@ export function InboxList({ result, status, query }: InboxListProps) {
         itemLabel="mensajes"
       />
 
-      <ConfirmInboxDialog message={confirming} onOpenChange={(open) => !open && setConfirming(null)} />
+      <ConfirmInboxDialog
+        message={confirming}
+        onOpenChange={(open) => !open && setConfirming(null)}
+        accounts={accounts}
+      />
     </div>
   );
 }

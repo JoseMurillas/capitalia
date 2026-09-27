@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { isoDateSchema, moneySchema, optionalTrimmed } from "./common";
+import { accountIdSchema, isoDateSchema, moneySchema, optionalTrimmed } from "./common";
 
 export const TRANSACTION_TYPES = ["INCOME", "EXPENSE"] as const;
 export const INCOME_CATEGORIES = ["SALARY", "LOAN_INTEREST", "OTHER_INCOME"] as const;
@@ -34,6 +34,13 @@ export const transactionSchema = z
     amount: moneySchema,
     description: z.string().trim().min(2, { error: "Describe el movimiento" }).max(200),
     transactionDate: isoDateSchema,
+    /**
+     * Where the money moved. Required: a movement with no account leaves every
+     * balance incomplete, which is the whole reason accounts exist. Old rows
+     * keep `null` in the database, so editing one asks for an account — the
+     * manual assignment flow of spec §7.
+     */
+    accountId: accountIdSchema,
     notes: optionalTrimmed(1000),
   })
   .refine(

@@ -46,6 +46,9 @@ export type CashBoxMovementDto = {
   description: string;
   notes: string | null;
   counterparty: CashBoxCounterparty | null;
+  /** The personal account this movement mirrors, when it came from one. */
+  accountId: string | null;
+  accountName: string | null;
   relatedCashBoxId: string | null;
   relatedCashBoxName: string | null;
   loanId: string | null;
@@ -164,6 +167,9 @@ export async function getCashBoxDetail(
       // backdated entry (e.g. a loan disbursement dated at startDate) would
       // otherwise make the balance dip below its real value mid-list.
       orderBy: [{ createdAt: "asc" }],
+      // The mirrored row says which personal account the money came from or went
+      // to, so the box ledger can name it instead of just saying "personal".
+      include: { accountMovement: { select: { accountId: true, account: { select: { name: true } } } } },
     }),
     prisma.cashBox.findMany({ select: { id: true, name: true } }),
   ]);
@@ -207,6 +213,8 @@ export async function getCashBoxDetail(
         description: movement.description,
         notes: movement.notes,
         counterparty: movement.counterparty,
+        accountId: movement.accountMovement?.accountId ?? null,
+        accountName: movement.accountMovement?.account.name ?? null,
         relatedCashBoxId: movement.relatedCashBoxId,
         relatedCashBoxName: movement.relatedCashBoxId ? (names.get(movement.relatedCashBoxId) ?? null) : null,
         loanId: movement.loanId,

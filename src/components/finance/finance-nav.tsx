@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 const ITEMS = [
   { href: "/finanzas", label: "Resumen", exact: true },
+  { href: "/finanzas/cuentas", label: "Cuentas", exact: false },
   { href: "/finanzas/movimientos", label: "Movimientos", exact: false },
   { href: "/finanzas/recurrentes", label: "Recurrentes", exact: false },
   { href: "/finanzas/tarjetas", label: "Tarjetas", exact: false },

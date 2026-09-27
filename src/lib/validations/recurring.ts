@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-import { isoDateSchema, moneySchema, optionalTrimmed, reminderDaysSchema } from "./common";
+import {
+  accountIdSchema,
+  isoDateSchema,
+  moneySchema,
+  optionalTrimmed,
+  reminderDaysSchema,
+} from "./common";
 import { EXPENSE_CATEGORIES } from "./transaction";
 
 export const RECURRING_FREQUENCIES = [
@@ -60,6 +66,22 @@ export type RecurringExpenseInput = z.infer<typeof recurringExpenseSchema>;
 export const markRecurringPaidSchema = z.object({
   amount: moneySchema,
   paidDate: isoDateSchema,
+  /**
+   * The account the money left. Optional here because an expense charged to its
+   * credit card moves no cash: that dialog shows no «Cuenta» field, and a
+   * required field nobody can see would only kill the submit button. Cash
+   * methods — where the field *is* on screen — validate with
+   * `markRecurringPaidCashSchema`, and `markRecurringPaid` refuses a cash
+   * payment without an account whatever the client sends.
+   */
+  accountId: z
+    .preprocess((value) => (value === "" || value === undefined ? null : value), z.string().trim().min(1).nullable())
+    .optional(),
+});
+
+/** What the dialog validates when «Cuenta» is on screen: every method but CREDIT_CARD. */
+export const markRecurringPaidCashSchema = markRecurringPaidSchema.extend({
+  accountId: accountIdSchema,
 });
 
 export type MarkRecurringPaidInput = z.infer<typeof markRecurringPaidSchema>;

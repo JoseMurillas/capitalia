@@ -6,6 +6,7 @@ import { toDecimal, toNumber } from "@/lib/calculations";
 import { endOfMonthIso, fromIsoDate, type IsoDate, startOfMonthIso, todayIso, toIsoDate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_PAGE_SIZE, pageCountFor, paginate } from "@/lib/search-params";
+import { UNASSIGNED_ACCOUNT } from "@/lib/validations/account";
 import { requireSession } from "@/server/auth";
 import type { PaginatedResult } from "@/types";
 
@@ -20,6 +21,9 @@ export type TransactionDto = {
   transactionDate: IsoDate;
   notes: string | null;
   createdAt: string;
+  /** Null on the movements written before accounts existed; they can be assigned in place. */
+  accountId: string | null;
+  accountName: string | null;
   /** Created by "marcar pagado" on this recurring expense. */
   recurringExpenseId: string | null;
   /** Created by a credit-card payment; deleting it does not restore the card balance. */
@@ -31,6 +35,8 @@ export type TransactionListParams = {
   to?: IsoDate;
   type?: TransactionType;
   category?: TransactionCategory;
+  /** An account id, or `UNASSIGNED_ACCOUNT` for the ones that have no account. */
+  account?: string;
   page?: number;
   pageSize?: number;
 };
@@ -41,7 +47,10 @@ export type TransactionListTotals = {
   balance: number;
 };
 
-const transactionInclude = { cardMovement: { select: { id: true } } } satisfies Prisma.TransactionInclude;
+const transactionInclude = {
+  cardMovement: { select: { id: true } },
+  account: { select: { name: true } },
+} satisfies Prisma.TransactionInclude;
 
 function toDto(t: Prisma.TransactionGetPayload<{ include: typeof transactionInclude }>): TransactionDto {
   return {
@@ -53,6 +62,8 @@ function toDto(t: Prisma.TransactionGetPayload<{ include: typeof transactionIncl
     transactionDate: toIsoDate(t.transactionDate),
     notes: t.notes,
     createdAt: t.createdAt.toISOString(),
+    accountId: t.accountId,
+    accountName: t.account?.name ?? null,
     recurringExpenseId: t.recurringExpenseId,
     isCardPayment: t.cardMovement !== null,
   };
@@ -79,6 +90,11 @@ export async function listTransactions(
     ...(transactionDate ? { transactionDate } : {}),
     ...(params.type ? { type: params.type } : {}),
     ...(params.category ? { category: params.category } : {}),
+    ...(params.account === UNASSIGNED_ACCOUNT
+      ? { accountId: null }
+      : params.account
+        ? { accountId: params.account }
+        : {}),
   };
 
   const [total, rows, grouped] = await Promise.all([

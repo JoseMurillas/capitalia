@@ -22,6 +22,7 @@ import {
 import { formatDate } from "@/lib/dates";
 import { CARD_MOVEMENT_KIND_LABELS } from "@/lib/labels";
 import { deleteInstallmentPlanAction } from "@/server/actions/credit-cards";
+import type { AccountOption } from "@/server/queries/accounts";
 import type { CardMovementDto, CreditCardDetailDto, InstallmentPlanDto } from "@/server/queries/credit-cards";
 
 import { CardPaymentDialog } from "./card-payment-dialog";
@@ -33,11 +34,13 @@ import { InstallmentPlanDialog } from "./installment-plan-dialog";
 type CreditCardDetailProps = {
   card: CreditCardDetailDto;
   defaultReminderDays: number;
+  /** Active accounts: a card payment leaves one of them. */
+  accounts: AccountOption[];
 };
 
 const movementTone = { CHARGE: "warning", PAYMENT: "success", ADJUSTMENT: "neutral" } as const;
 
-export function CreditCardDetail({ card, defaultReminderDays }: CreditCardDetailProps) {
+export function CreditCardDetail({ card, defaultReminderDays, accounts }: CreditCardDetailProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [statementOpen, setStatementOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -218,7 +221,7 @@ export function CreditCardDetail({ card, defaultReminderDays }: CreditCardDetail
 
       <CreditCardFormDialog open={editOpen} onOpenChange={setEditOpen} card={card} defaultReminderDays={defaultReminderDays} />
       <CardStatementDialog open={statementOpen} onOpenChange={setStatementOpen} card={card} />
-      <CardPaymentDialog open={paymentOpen} onOpenChange={setPaymentOpen} card={card} />
+      <CardPaymentDialog open={paymentOpen} onOpenChange={setPaymentOpen} card={card} accounts={accounts} />
       <InstallmentPlanDialog
         open={planDialog.open}
         onOpenChange={(open) => setPlanDialog((current) => ({ ...current, open }))}
